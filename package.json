@@ -11,17 +11,13 @@
     "provider"
   ],
   "type": "module",
-  "bin": {
-    "clinepass-proxy": "./src/cli.ts"
-  },
   "files": [
     "src",
     "README.md"
   ],
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "bun test",
-    "start": "bun run src/cli.ts serve --port 48752"
+    "test": "bun test"
   },
   "dependencies": {
     "effect": "^4.0.0-beta.66"

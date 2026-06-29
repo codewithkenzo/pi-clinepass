@@ -10,7 +10,11 @@ import {
   CLINEPASS_PROVIDER_ID,
 } from "./constants.js"
 import { UpstreamError } from "./errors.js"
-import type { RecommendedModelsResponse } from "./types.js"
+
+export interface RecommendedModelsResponse {
+  clinePass?: Array<{ id: string; name?: string; description?: string }>
+  [key: string]: unknown
+}
 
 export interface ClinePassModelEntry {
   readonly id: string
