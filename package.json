@@ -1,0 +1,21 @@
+{
+  "name": "@codewithkenzo/pi-clinepass",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "clinepass-proxy": "./src/cli.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "start": "bun run src/cli.ts serve --port 48752"
+  },
+  "dependencies": {
+    "effect": "^4.0.0-beta.66"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "latest"
+  }
+}
