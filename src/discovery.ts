@@ -24,6 +24,9 @@ export interface ClinePassModelEntry {
 type PartialModelSpec = Partial<ClinePassModelSpec>
 type ModelSpecsById = Readonly<Record<string, PartialModelSpec>>
 
+const OPENROUTER_MODELS_CACHE_TTL_MS = 60 * 60 * 1000
+let openRouterModelsCache: { readonly expiresAt: number; readonly payload: unknown } | undefined
+
 const FALLBACK_MODELS: readonly ClinePassModelEntry[] = [
   { id: "cline-pass/glm-5.2", name: "cline-pass/glm-5.2" },
   { id: "cline-pass/qwen3.7-max", name: "cline-pass/qwen3.7-max" },
@@ -123,8 +126,16 @@ export function parseOpenRouterModelSpecs(payload: unknown, entries: readonly Cl
   return specs
 }
 
-export function fetchOpenRouterModelSpecs(entries: readonly ClinePassModelEntry[], fetcher: typeof fetch = fetch) {
+export function clearOpenRouterModelsCache(): void {
+  openRouterModelsCache = undefined
+}
+
+function fetchOpenRouterModelsPayload(fetcher: typeof fetch) {
   return Effect.gen(function* () {
+    if (openRouterModelsCache && openRouterModelsCache.expiresAt > Date.now()) {
+      return openRouterModelsCache.payload
+    }
+
     const response = yield* Effect.tryPromise({
       try: () => fetcher(OPENROUTER_MODELS_URL, { headers: { accept: "application/json" } }),
       catch: (cause) => new UpstreamError({ message: "Failed to fetch OpenRouter model list", cause }),
@@ -133,8 +144,16 @@ export function fetchOpenRouterModelSpecs(entries: readonly ClinePassModelEntry[
     if (!response.ok) {
       return yield* Effect.fail(new UpstreamError({ message: `OpenRouter model list failed with HTTP ${response.status}`, status: response.status }))
     }
-    return parseOpenRouterModelSpecs(payload, entries)
+
+    openRouterModelsCache = { expiresAt: Date.now() + OPENROUTER_MODELS_CACHE_TTL_MS, payload }
+    return payload
   })
+}
+
+export function fetchOpenRouterModelSpecs(entries: readonly ClinePassModelEntry[], fetcher: typeof fetch = fetch) {
+  return fetchOpenRouterModelsPayload(fetcher).pipe(
+    Effect.map((payload) => parseOpenRouterModelSpecs(payload, entries)),
+  )
 }
 
 function isReasoningModel(id: string): boolean {

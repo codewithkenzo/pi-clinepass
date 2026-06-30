@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, mock } from "bun:test"
 import extension from "../src/index.ts"
-import { buildClinePassModels, parseClinePassModelEntries, parseOpenRouterModelSpecs, toClinePassModelConfig } from "../src/discovery.ts"
+import { Effect } from "effect"
+import { buildClinePassModels, clearOpenRouterModelsCache, fetchOpenRouterModelSpecs, parseClinePassModelEntries, parseOpenRouterModelSpecs, toClinePassModelConfig } from "../src/discovery.ts"
 import { CLINEPASS_BASE_URL } from "../src/config.ts"
 import { CLINEPASS_PROVIDER_ID } from "../src/constants.ts"
 
@@ -8,6 +9,7 @@ const originalFetch = globalThis.fetch
 
 afterEach(() => {
   globalThis.fetch = originalFetch
+  clearOpenRouterModelsCache()
 })
 
 function jsonResponse(value: unknown, init?: ResponseInit) {
@@ -82,6 +84,25 @@ describe("ClinePass model discovery/config", () => {
     const model = toClinePassModelConfig(entries[0], specs)
     expect(model.contextWindow).toBe(1_048_576)
     expect(model.maxTokens).toBe(32_768)
+  })
+
+  it("caches OpenRouter model specs during the process TTL", async () => {
+    const entries = [{ id: "cline-pass/future-code-1", name: "Future Code" }]
+    const fetcher = mock(async () => jsonResponse({
+      data: [
+        {
+          id: "future/future-code-1",
+          context_length: 1_048_576,
+          top_provider: { max_completion_tokens: 32_768 },
+        },
+      ],
+    })) as unknown as typeof fetch
+
+    const first = await Effect.runPromise(fetchOpenRouterModelSpecs(entries, fetcher))
+    const second = await Effect.runPromise(fetchOpenRouterModelSpecs(entries, fetcher))
+
+    expect(first).toEqual(second)
+    expect(fetcher).toHaveBeenCalledTimes(1)
   })
 })
 
