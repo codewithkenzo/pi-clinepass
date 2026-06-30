@@ -25,12 +25,12 @@ export type Model<TApi extends Api = Api> = {
   readonly provider: string
   readonly baseUrl: string
   readonly api: TApi
-  readonly reasoning?: boolean
+  readonly reasoning: boolean
   readonly thinkingLevelMap?: Partial<Record<ModelThinkingLevel, string | null>>
-  readonly input?: readonly string[]
-  readonly cost?: { readonly input: number; readonly output: number; readonly cacheRead: number; readonly cacheWrite: number }
-  readonly contextWindow?: number
-  readonly maxTokens?: number
+  readonly input: ("text" | "image")[]
+  readonly cost: { readonly input: number; readonly output: number; readonly cacheRead: number; readonly cacheWrite: number }
+  readonly contextWindow: number
+  readonly maxTokens: number
   readonly headers?: Record<string, string>
   readonly compat?: Record<string, unknown>
 }
@@ -88,6 +88,7 @@ export type OAuthProviderInterface = {
 }
 
 export type ProviderConfig = {
+  readonly api?: Api
   readonly baseUrl: string
   readonly models: Model<Api>[]
   readonly streamSimple?: StreamSimpleFunction
