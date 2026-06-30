@@ -1,4 +1,3 @@
-import type { Api, Model } from "@earendil-works/pi-ai"
 import { Clock, Effect } from "effect"
 import { CLINE_MODELS_URL, CLINEPASS_BASE_URL, OPENROUTER_MODELS_URL } from "./config.js"
 import {
@@ -9,6 +8,7 @@ import {
   modelSpecsFor,
 } from "./constants.js"
 import { UpstreamError } from "./errors.js"
+import type { Api, Model } from "./pi-types.js"
 
 export interface RecommendedModelsResponse {
   clinePass?: Array<{ id: string; name?: string; description?: string }>

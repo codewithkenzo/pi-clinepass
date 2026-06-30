@@ -1,8 +1,8 @@
-import type { Api, Model, OAuthCredentials, OAuthLoginCallbacks, OAuthProviderInterface } from "@earendil-works/pi-ai"
 import { Clock, Effect } from "effect"
 import { CLINE_AUTH_REGISTER_URL, CLINE_REFRESH_URL, WORKOS_AUTHENTICATE_URL, WORKOS_CLIENT_ID, WORKOS_DEVICE_AUTH_URL } from "./config.js"
 import { CLINEPASS_DISPLAY_NAME, CLINEPASS_PROVIDER_ID } from "./constants.js"
 import { AuthError } from "./errors.js"
+import type { Api, Model, OAuthCredentials, OAuthLoginCallbacks, OAuthProviderInterface } from "./pi-types.js"
 
 const DEFAULT_EXPIRES_IN_SECONDS = 300
 const DEFAULT_POLL_INTERVAL_SECONDS = 5

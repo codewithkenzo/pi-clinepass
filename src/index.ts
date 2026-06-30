@@ -1,9 +1,9 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent"
 import { Effect } from "effect"
 import { CLINEPASS_BASE_URL } from "./config.js"
 import { CLINEPASS_PROVIDER_ID } from "./constants.js"
 import { discoverClinePassModels, fallbackClinePassModels } from "./discovery.js"
 import { createClinePassOAuthProvider } from "./pi-oauth.js"
+import type { ExtensionAPI } from "./pi-types.js"
 
 export default async function (pi: ExtensionAPI): Promise<void> {
   const models = await Effect.runPromise(
