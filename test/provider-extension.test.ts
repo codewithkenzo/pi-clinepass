@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, mock } from "bun:test"
 import extension from "../src/index.ts"
-import { buildClinePassModels, parseClinePassModelEntries, toClinePassModelConfig } from "../src/discovery.ts"
+import { buildClinePassModels, parseClinePassModelEntries, parseOpenRouterModelSpecs, toClinePassModelConfig } from "../src/discovery.ts"
 import { CLINEPASS_BASE_URL, CLINEPASS_PROVIDER_ID } from "../src/constants.ts"
 
 const originalFetch = globalThis.fetch
@@ -30,7 +30,7 @@ describe("ClinePass model discovery/config", () => {
       reasoning: true,
       input: ["text"],
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-      contextWindow: 1000000,
+      contextWindow: 1048576,
       maxTokens: 131072,
       headers: {
         "User-Agent": "Cline/4.0.0",
@@ -54,16 +54,33 @@ describe("ClinePass model discovery/config", () => {
 
   it("uses per-model context window and max tokens from specs table", () => {
     const glm = toClinePassModelConfig({ id: "cline-pass/glm-5.2" })
-    expect(glm.contextWindow).toBe(1_000_000)
+    expect(glm.contextWindow).toBe(1_048_576)
     expect(glm.maxTokens).toBe(131_072)
 
     const kimi = toClinePassModelConfig({ id: "cline-pass/kimi-k2.7-code" })
     expect(kimi.contextWindow).toBe(262_144)
-    expect(kimi.maxTokens).toBe(8_192)
+    expect(kimi.maxTokens).toBe(16_384)
 
     const unknown = toClinePassModelConfig({ id: "cline-pass/some-new-model" })
     expect(unknown.contextWindow).toBe(128_000)
     expect(unknown.maxTokens).toBe(8_192)
+  })
+
+  it("enriches future ClinePass models from OpenRouter by model slug", () => {
+    const entries = [{ id: "cline-pass/future-code-1", name: "Future Code" }]
+    const specs = parseOpenRouterModelSpecs({
+      data: [
+        {
+          id: "future/future-code-1",
+          context_length: 1_048_576,
+          top_provider: { max_completion_tokens: 32_768 },
+        },
+      ],
+    }, entries)
+
+    const model = toClinePassModelConfig(entries[0], specs)
+    expect(model.contextWindow).toBe(1_048_576)
+    expect(model.maxTokens).toBe(32_768)
   })
 })
 

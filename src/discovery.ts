@@ -1,11 +1,12 @@
 import type { Api, Model } from "@earendil-works/pi-ai"
 import { Effect } from "effect"
-import { CLINE_MODELS_URL } from "./config.js"
+import { CLINE_MODELS_URL, OPENROUTER_MODELS_URL } from "./config.js"
 import {
   CLINE_CLIENT_HEADERS,
   CLINEPASS_BASE_URL,
   CLINEPASS_COST,
   CLINEPASS_PROVIDER_ID,
+  type ClinePassModelSpec,
   modelSpecsFor,
 } from "./constants.js"
 import { UpstreamError } from "./errors.js"
@@ -21,6 +22,9 @@ export interface ClinePassModelEntry {
   readonly description?: string
 }
 
+type PartialModelSpec = Partial<ClinePassModelSpec>
+type ModelSpecsById = Readonly<Record<string, PartialModelSpec>>
+
 const FALLBACK_MODELS: readonly ClinePassModelEntry[] = [
   { id: "cline-pass/glm-5.2", name: "cline-pass/glm-5.2" },
   { id: "cline-pass/qwen3.7-max", name: "cline-pass/qwen3.7-max" },
@@ -33,6 +37,14 @@ const FALLBACK_MODELS: readonly ClinePassModelEntry[] = [
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+function positiveNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : undefined
+}
+
+function modelSlug(id: string): string {
+  return id.split("/").at(-1) ?? id
 }
 
 function normalizeEntry(value: unknown): ClinePassModelEntry | undefined {
@@ -57,6 +69,13 @@ function uniqueModels(entries: readonly ClinePassModelEntry[]): ClinePassModelEn
   return result
 }
 
+function decodeJson<T>(response: Response, label: string) {
+  return Effect.tryPromise({
+    try: () => response.json() as Promise<T>,
+    catch: (cause) => new UpstreamError({ message: `${label} returned invalid JSON`, status: response.status, cause }),
+  })
+}
+
 export function parseClinePassModelEntries(payload: RecommendedModelsResponse): ClinePassModelEntry[] {
   const entries = Array.isArray(payload.clinePass) ? payload.clinePass : []
   return uniqueModels(entries.flatMap((entry) => {
@@ -71,21 +90,51 @@ export function fetchClinePassModelEntries(fetcher: typeof fetch = fetch) {
       try: () => fetcher(CLINE_MODELS_URL, { headers: { accept: "application/json" } }),
       catch: (cause) => new UpstreamError({ message: "Failed to fetch ClinePass model list", cause }),
     })
-    const text = yield* Effect.tryPromise({
-      try: () => response.text(),
-      catch: (cause) => new UpstreamError({ message: "Failed to read ClinePass model response", status: response.status, cause }),
-    })
+    const payload = yield* decodeJson<RecommendedModelsResponse>(response, "ClinePass model list")
     if (!response.ok) {
-      return yield* Effect.fail(new UpstreamError({ message: `ClinePass model list failed with HTTP ${response.status}`, status: response.status, body: text.slice(0, 500) }))
-    }
-    let payload: RecommendedModelsResponse
-    try {
-      payload = JSON.parse(text) as RecommendedModelsResponse
-    } catch (cause) {
-      return yield* Effect.fail(new UpstreamError({ message: "ClinePass model list returned invalid JSON", status: response.status, cause }))
+      return yield* Effect.fail(new UpstreamError({ message: `ClinePass model list failed with HTTP ${response.status}`, status: response.status }))
     }
     const models = parseClinePassModelEntries(payload)
     return models.length > 0 ? models : [...FALLBACK_MODELS]
+  })
+}
+
+function openRouterSpecBySlug(value: unknown): readonly [string, PartialModelSpec] | undefined {
+  if (!isRecord(value) || typeof value.id !== "string") return undefined
+  const topProvider = isRecord(value.top_provider) ? value.top_provider : undefined
+  const contextWindow = positiveNumber(value.context_length) ?? positiveNumber(topProvider?.context_length)
+  const maxTokens = positiveNumber(topProvider?.max_completion_tokens)
+  if (!contextWindow && !maxTokens) return undefined
+  return [modelSlug(value.id), { ...(contextWindow ? { contextWindow } : {}), ...(maxTokens ? { maxTokens } : {}) }]
+}
+
+export function parseOpenRouterModelSpecs(payload: unknown, entries: readonly ClinePassModelEntry[]): ModelSpecsById {
+  if (!isRecord(payload) || !Array.isArray(payload.data)) return {}
+  const bySlug = new Map<string, PartialModelSpec>()
+  for (const value of payload.data) {
+    const pair = openRouterSpecBySlug(value)
+    if (pair) bySlug.set(pair[0], pair[1])
+  }
+
+  const specs: Record<string, PartialModelSpec> = {}
+  for (const entry of entries) {
+    const spec = bySlug.get(modelSlug(entry.id))
+    if (spec) specs[entry.id] = spec
+  }
+  return specs
+}
+
+export function fetchOpenRouterModelSpecs(entries: readonly ClinePassModelEntry[], fetcher: typeof fetch = fetch) {
+  return Effect.gen(function* () {
+    const response = yield* Effect.tryPromise({
+      try: () => fetcher(OPENROUTER_MODELS_URL, { headers: { accept: "application/json" } }),
+      catch: (cause) => new UpstreamError({ message: "Failed to fetch OpenRouter model list", cause }),
+    })
+    const payload = yield* decodeJson<unknown>(response, "OpenRouter model list")
+    if (!response.ok) {
+      return yield* Effect.fail(new UpstreamError({ message: `OpenRouter model list failed with HTTP ${response.status}`, status: response.status }))
+    }
+    return parseOpenRouterModelSpecs(payload, entries)
   })
 }
 
@@ -98,8 +147,17 @@ function displayName(entry: ClinePassModelEntry): string {
   return entry.name?.trim() || entry.id
 }
 
-export function toClinePassModelConfig(entry: ClinePassModelEntry): Model<"openai-completions"> {
-  const specs = modelSpecsFor(entry.id)
+function mergeSpecs(entry: ClinePassModelEntry, discoveredSpecs: ModelSpecsById): ClinePassModelSpec {
+  const staticSpecs = modelSpecsFor(entry.id)
+  const discovered = discoveredSpecs[entry.id]
+  return {
+    contextWindow: discovered?.contextWindow ?? staticSpecs.contextWindow,
+    maxTokens: discovered?.maxTokens ?? staticSpecs.maxTokens,
+  }
+}
+
+export function toClinePassModelConfig(entry: ClinePassModelEntry, discoveredSpecs: ModelSpecsById = {}): Model<"openai-completions"> {
+  const specs = mergeSpecs(entry, discoveredSpecs)
   return {
     id: entry.id,
     name: displayName(entry),
@@ -134,12 +192,18 @@ export function toClinePassModelConfig(entry: ClinePassModelEntry): Model<"opena
   }
 }
 
-export function buildClinePassModels(entries: readonly ClinePassModelEntry[]): Model<Api>[] {
-  return uniqueModels(entries).map((entry) => toClinePassModelConfig(entry))
+export function buildClinePassModels(entries: readonly ClinePassModelEntry[], discoveredSpecs: ModelSpecsById = {}): Model<Api>[] {
+  return uniqueModels(entries).map((entry) => toClinePassModelConfig(entry, discoveredSpecs))
 }
 
 export function discoverClinePassModels(fetcher: typeof fetch = fetch) {
-  return fetchClinePassModelEntries(fetcher).pipe(Effect.map(buildClinePassModels))
+  return Effect.gen(function* () {
+    const entries = yield* fetchClinePassModelEntries(fetcher)
+    const discoveredSpecs = yield* fetchOpenRouterModelSpecs(entries, fetcher).pipe(
+      Effect.catchTag("UpstreamError", () => Effect.succeed({} satisfies ModelSpecsById)),
+    )
+    return buildClinePassModels(entries, discoveredSpecs)
+  })
 }
 
 export function fallbackClinePassModels(): Model<Api>[] {

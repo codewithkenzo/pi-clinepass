@@ -70,17 +70,17 @@ The extension fetches:
 https://api.cline.bot/api/v1/ai/cline/recommended-models
 ```
 
-It reads `clinePass[]`, dedupes model ids, and falls back to a small built-in list if discovery is unavailable.
+It reads `clinePass[]`, dedupes model ids, then enriches context/output limits from OpenRouter's public model catalog by model slug. A small static table covers known ClinePass models when OpenRouter omits fields.
 
 Known models include:
 
-- `cline-pass/glm-5.2` — 1M context, 131K output
-- `cline-pass/qwen3.7-max` — 1M context, 66K output
-- `cline-pass/qwen3.7-plus` — 1M context, 66K output
-- `cline-pass/kimi-k2.7-code` — 256K context
-- `cline-pass/deepseek-v4-pro` — 1M context, 384K output
-- `cline-pass/deepseek-v4-flash` — 1M context, 384K output
-- `cline-pass/minimax-m3` — 1M context, 512K output
+- `cline-pass/glm-5.2` — 1,048,576 context, 131K output
+- `cline-pass/qwen3.7-max` — 1M context, 65K output
+- `cline-pass/qwen3.7-plus` — 1M context, 65K output
+- `cline-pass/kimi-k2.7-code` — 262K context, 16K output
+- `cline-pass/deepseek-v4-pro` — 1,048,576 context, 384K output
+- `cline-pass/deepseek-v4-flash` — 1,048,576 context, 65K output
+- `cline-pass/minimax-m3` — 1,048,576 context, 512K output
 
 ## OAuth behavior
 
