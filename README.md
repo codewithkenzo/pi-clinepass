@@ -9,7 +9,7 @@ ClinePass models inside Pi through Pi's native provider system.
 ## What works
 
 - Provider id: `clinepass`
-- Primary model: `cline-pass/glm-5.2`
+- Primary model: `glm-5.2`
 - Auth: Pi `/login` OAuth device-code flow
 - Model list: live Cline recommended-models endpoint, filtered to `clinePass[]`
 - Transport: `openai-completions` against `https://api.cline.bot/api/v1`
@@ -54,12 +54,12 @@ In Pi:
 2. Choose **ClinePass**
 3. Open the browser/device URL and enter the shown code
 4. Run `/model`
-5. Pick `clinepass/cline-pass/glm-5.2`
+5. Pick `clinepass/glm-5.2`
 
 Exact model string for CLI/non-interactive runs:
 
 ```bash
-pi --model clinepass/cline-pass/glm-5.2 "Say OK"
+pi --model clinepass/glm-5.2 "Say OK"
 ```
 
 ## Model discovery
@@ -74,13 +74,13 @@ It reads `clinePass[]`, dedupes model ids, then enriches context/output limits f
 
 Known models include:
 
-- `cline-pass/glm-5.2` — 1,048,576 context, 131K output
-- `cline-pass/qwen3.7-max` — 1M context, 65K output
-- `cline-pass/qwen3.7-plus` — 1M context, 65K output
-- `cline-pass/kimi-k2.7-code` — 262K context, 16K output
-- `cline-pass/deepseek-v4-pro` — 1,048,576 context, 384K output
-- `cline-pass/deepseek-v4-flash` — 1,048,576 context, 65K output
-- `cline-pass/minimax-m3` — 1,048,576 context, 512K output
+- `glm-5.2` — 1,048,576 context, 131K output
+- `qwen3.7-max` — 1M context, 65K output
+- `qwen3.7-plus` — 1M context, 65K output
+- `kimi-k2.7-code` — 262K context, 16K output
+- `deepseek-v4-pro` — 1,048,576 context, 384K output
+- `deepseek-v4-flash` — 1,048,576 context, 65K output
+- `minimax-m3` — 1,048,576 context, 512K output
 
 ## OAuth behavior
 
@@ -137,7 +137,7 @@ bun test
 Useful smoke test after local install:
 
 ```bash
-pi --model clinepass/cline-pass/glm-5.2 -p "Reply exactly OK"
+pi --model clinepass/glm-5.2 -p "Reply exactly OK"
 ```
 
 If it says `No API key found for clinepass`, the extension loaded correctly; run `/login`.

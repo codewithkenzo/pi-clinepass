@@ -17,6 +17,7 @@ export interface RecommendedModelsResponse {
 
 export interface ClinePassModelEntry {
   readonly id: string
+  readonly upstreamId: string
   readonly name?: string
   readonly description?: string
 }
@@ -28,13 +29,13 @@ const OPENROUTER_MODELS_CACHE_TTL_MS = 60 * 60 * 1000
 let openRouterModelsCache: { readonly expiresAt: number; readonly payload: unknown } | undefined
 
 const FALLBACK_MODELS: readonly ClinePassModelEntry[] = [
-  { id: "cline-pass/glm-5.2", name: "cline-pass/glm-5.2" },
-  { id: "cline-pass/qwen3.7-max", name: "cline-pass/qwen3.7-max" },
-  { id: "cline-pass/qwen3.7-plus", name: "cline-pass/qwen3.7-plus" },
-  { id: "cline-pass/kimi-k2.7-code", name: "cline-pass/kimi-k2.7-code" },
-  { id: "cline-pass/deepseek-v4-pro", name: "cline-pass/deepseek-v4-pro" },
-  { id: "cline-pass/deepseek-v4-flash", name: "cline-pass/deepseek-v4-flash" },
-  { id: "cline-pass/minimax-m3", name: "cline-pass/minimax-m3" },
+  { id: "glm-5.2", upstreamId: "cline-pass/glm-5.2", name: "GLM 5.2" },
+  { id: "qwen3.7-max", upstreamId: "cline-pass/qwen3.7-max", name: "Qwen3.7 Max" },
+  { id: "qwen3.7-plus", upstreamId: "cline-pass/qwen3.7-plus", name: "Qwen3.7 Plus" },
+  { id: "kimi-k2.7-code", upstreamId: "cline-pass/kimi-k2.7-code", name: "Kimi K2.7 Code" },
+  { id: "deepseek-v4-pro", upstreamId: "cline-pass/deepseek-v4-pro", name: "DeepSeek V4 Pro" },
+  { id: "deepseek-v4-flash", upstreamId: "cline-pass/deepseek-v4-flash", name: "DeepSeek V4 Flash" },
+  { id: "minimax-m3", upstreamId: "cline-pass/minimax-m3", name: "MiniMax M3" },
 ]
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -49,12 +50,17 @@ function modelSlug(id: string): string {
   return id.split("/").at(-1) ?? id
 }
 
+export function toClinePassUpstreamModelId(id: string): string {
+  return id.startsWith("cline-pass/") ? id : `cline-pass/${id}`
+}
+
 function normalizeEntry(value: unknown): ClinePassModelEntry | undefined {
   if (!isRecord(value) || typeof value.id !== "string") return undefined
-  const id = value.id.trim()
-  if (!id.startsWith("cline-pass/")) return undefined
+  const upstreamId = value.id.trim()
+  if (!upstreamId.startsWith("cline-pass/")) return undefined
   return {
-    id,
+    id: modelSlug(upstreamId),
+    upstreamId,
     ...(typeof value.name === "string" && value.name.trim() ? { name: value.name.trim() } : {}),
     ...(typeof value.description === "string" ? { description: value.description } : {}),
   }
@@ -120,7 +126,7 @@ export function parseOpenRouterModelSpecs(payload: unknown, entries: readonly Cl
 
   const specs: Record<string, PartialModelSpec> = {}
   for (const entry of entries) {
-    const spec = bySlug.get(modelSlug(entry.id))
+    const spec = bySlug.get(modelSlug(entry.upstreamId))
     if (spec) specs[entry.id] = spec
   }
   return specs
@@ -167,7 +173,7 @@ function displayName(entry: ClinePassModelEntry): string {
 }
 
 function mergeSpecs(entry: ClinePassModelEntry, discoveredSpecs: ModelSpecsById): ClinePassModelSpec {
-  const staticSpecs = modelSpecsFor(entry.id)
+  const staticSpecs = modelSpecsFor(entry.upstreamId)
   const discovered = discoveredSpecs[entry.id]
   return {
     contextWindow: discovered?.contextWindow ?? staticSpecs.contextWindow,

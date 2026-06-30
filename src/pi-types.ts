@@ -3,6 +3,22 @@ export type Api = "openai-completions" | (string & {})
 export type ThinkingLevel = "minimal" | "low" | "medium" | "high" | "xhigh"
 export type ModelThinkingLevel = "off" | ThinkingLevel
 
+export type TextContent = { readonly type: "text"; readonly text: string }
+export type ImageContent = { readonly type: "image"; readonly data: string; readonly mimeType: string }
+export type ThinkingContent = { readonly type: "thinking"; readonly thinking: string; readonly thinkingSignature?: string }
+export type ToolCall = { readonly type: "toolCall"; readonly id: string; readonly name: string; readonly arguments: Record<string, unknown> }
+export type Message = { readonly role: string; readonly content?: unknown; readonly [key: string]: unknown }
+export type Tool = { readonly name: string; readonly description: string; readonly parameters: unknown }
+
+export type Context = {
+  readonly systemPrompt?: string
+  readonly messages: Message[]
+  readonly tools?: Tool[]
+}
+
+export type SimpleStreamOptions = Record<string, unknown>
+export type AssistantMessageEventStream = unknown
+
 export type Model<TApi extends Api = Api> = {
   readonly id: string
   readonly name: string
@@ -18,6 +34,8 @@ export type Model<TApi extends Api = Api> = {
   readonly headers?: Record<string, string>
   readonly compat?: Record<string, unknown>
 }
+
+export type StreamSimpleFunction = (model: Model<Api>, context: Context, options?: SimpleStreamOptions) => AssistantMessageEventStream
 
 export type OAuthCredentials = {
   readonly refresh: string
@@ -72,6 +90,7 @@ export type OAuthProviderInterface = {
 export type ProviderConfig = {
   readonly baseUrl: string
   readonly models: Model<Api>[]
+  readonly streamSimple?: StreamSimpleFunction
   readonly oauth?: OAuthProviderInterface
 }
 
