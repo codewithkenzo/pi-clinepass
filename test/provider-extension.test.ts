@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, mock } from "bun:test"
 import extension from "../src/index.ts"
 import { buildClinePassModels, parseClinePassModelEntries, parseOpenRouterModelSpecs, toClinePassModelConfig } from "../src/discovery.ts"
-import { CLINEPASS_BASE_URL, CLINEPASS_PROVIDER_ID } from "../src/constants.ts"
+import { CLINEPASS_BASE_URL } from "../src/config.ts"
+import { CLINEPASS_PROVIDER_ID } from "../src/constants.ts"
 
 const originalFetch = globalThis.fetch
 

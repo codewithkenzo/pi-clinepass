@@ -1,6 +1,5 @@
 export const CLINEPASS_PROVIDER_ID = "clinepass"
 export const CLINEPASS_DISPLAY_NAME = "ClinePass"
-export const CLINEPASS_BASE_URL = "https://api.cline.bot/api/v1"
 export const CLINEPASS_DEFAULT_CONTEXT_WINDOW = 128_000
 export const CLINEPASS_DEFAULT_MAX_TOKENS = 8_192
 

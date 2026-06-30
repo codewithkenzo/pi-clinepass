@@ -1,9 +1,8 @@
 import type { Api, Model } from "@earendil-works/pi-ai"
 import { Effect } from "effect"
-import { CLINE_MODELS_URL, OPENROUTER_MODELS_URL } from "./config.js"
+import { CLINE_MODELS_URL, CLINEPASS_BASE_URL, OPENROUTER_MODELS_URL } from "./config.js"
 import {
   CLINE_CLIENT_HEADERS,
-  CLINEPASS_BASE_URL,
   CLINEPASS_COST,
   CLINEPASS_PROVIDER_ID,
   type ClinePassModelSpec,
