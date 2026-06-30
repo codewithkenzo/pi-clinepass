@@ -1,5 +1,5 @@
 import type { Api, Model, OAuthCredentials, OAuthLoginCallbacks, OAuthProviderInterface } from "@earendil-works/pi-ai"
-import { Effect } from "effect"
+import { Clock, Effect } from "effect"
 import { CLINE_AUTH_REGISTER_URL, CLINE_REFRESH_URL, WORKOS_AUTHENTICATE_URL, WORKOS_CLIENT_ID, WORKOS_DEVICE_AUTH_URL } from "./config.js"
 import { CLINEPASS_DISPLAY_NAME, CLINEPASS_PROVIDER_ID } from "./constants.js"
 import { AuthError } from "./errors.js"
@@ -42,10 +42,10 @@ type ClineTokenResponse = {
   }
 }
 
-function expiresAtMs(value?: string): number {
-  if (!value) return Date.now() + REFRESH_FALLBACK_EXPIRES_MS
+function expiresAtMs(value: string | undefined, nowMs: number): number {
+  if (!value) return nowMs + REFRESH_FALLBACK_EXPIRES_MS
   const parsed = Date.parse(value)
-  return Number.isFinite(parsed) ? parsed : Date.now() + REFRESH_FALLBACK_EXPIRES_MS
+  return Number.isFinite(parsed) ? parsed : nowMs + REFRESH_FALLBACK_EXPIRES_MS
 }
 
 function withoutWorkosPrefix(token: string): string {
@@ -57,17 +57,20 @@ export function withWorkosPrefix(token: string): string {
 }
 
 function credentialsFromClineResponse(payload: ClineTokenResponse, fallbackRefresh?: string): Effect.Effect<OAuthCredentials, AuthError> {
-  const access = payload.data?.accessToken
-  const refresh = payload.data?.refreshToken ?? fallbackRefresh
-  if (!payload.success || !access || !refresh) {
-    return Effect.fail(new AuthError({ message: "Cline OAuth response missing tokens" }))
-  }
-  return Effect.succeed({
-    access: withoutWorkosPrefix(access),
-    refresh,
-    expires: expiresAtMs(payload.data?.expiresAt),
-    accountId: payload.data?.userInfo?.clineUserId ?? undefined,
-    email: payload.data?.userInfo?.email ?? undefined,
+  return Effect.gen(function* () {
+    const nowMs = yield* Clock.currentTimeMillis
+    const access = payload.data?.accessToken
+    const refresh = payload.data?.refreshToken ?? fallbackRefresh
+    if (!payload.success || !access || !refresh) {
+      return yield* Effect.fail(new AuthError({ message: "Cline OAuth response missing tokens" }))
+    }
+    return {
+      access: withoutWorkosPrefix(access),
+      refresh,
+      expires: expiresAtMs(payload.data?.expiresAt, nowMs),
+      accountId: payload.data?.userInfo?.clineUserId ?? undefined,
+      email: payload.data?.userInfo?.email ?? undefined,
+    }
   })
 }
 
@@ -123,17 +126,18 @@ export function startClineDeviceAuth(fetcher: typeof fetch = fetch) {
   })
 }
 
-function sleep(ms: number) {
-  return Effect.promise(() => new Promise<void>((resolve) => setTimeout(resolve, ms)))
+function sleepSeconds(seconds: number) {
+  return Effect.sleep(`${seconds} seconds`)
 }
 
 export function pollWorkOsDeviceToken(input: { deviceCode: string; expiresInSeconds: number; intervalSeconds: number; callbacks?: OAuthLoginCallbacks; fetcher?: typeof fetch }) {
   return Effect.gen(function* () {
     const fetcher = input.fetcher ?? fetch
-    const deadline = Date.now() + input.expiresInSeconds * 1000
+    const startedAt = yield* Clock.currentTimeMillis
+    const deadline = startedAt + input.expiresInSeconds * 1000
     let intervalSeconds = Math.max(1, input.intervalSeconds || DEFAULT_POLL_INTERVAL_SECONDS)
 
-    while (Date.now() < deadline) {
+    while ((yield* Clock.currentTimeMillis) < deadline) {
       if (input.callbacks?.signal?.aborted) return yield* Effect.fail(new AuthError({ message: "ClinePass login cancelled" }))
       const response = yield* Effect.tryPromise({
         try: () => fetcher(WORKOS_AUTHENTICATE_URL, {
@@ -155,12 +159,12 @@ export function pollWorkOsDeviceToken(input: { deviceCode: string; expiresInSeco
         return payload
       }
       if (payload.error === "authorization_pending") {
-        yield* sleep(intervalSeconds * 1000)
+        yield* sleepSeconds(intervalSeconds)
         continue
       }
       if (payload.error === "slow_down") {
         intervalSeconds += 5
-        yield* sleep(intervalSeconds * 1000)
+        yield* sleepSeconds(intervalSeconds)
         continue
       }
       return yield* Effect.fail(new AuthError({ message: payload.error_description || payload.error || `WorkOS polling failed with HTTP ${response.status}`, status: response.status }))

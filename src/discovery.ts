@@ -1,5 +1,5 @@
 import type { Api, Model } from "@earendil-works/pi-ai"
-import { Effect } from "effect"
+import { Clock, Effect } from "effect"
 import { CLINE_MODELS_URL, CLINEPASS_BASE_URL, OPENROUTER_MODELS_URL } from "./config.js"
 import {
   CLINE_CLIENT_HEADERS,
@@ -132,7 +132,8 @@ export function clearOpenRouterModelsCache(): void {
 
 function fetchOpenRouterModelsPayload(fetcher: typeof fetch) {
   return Effect.gen(function* () {
-    if (openRouterModelsCache && openRouterModelsCache.expiresAt > Date.now()) {
+    const now = yield* Clock.currentTimeMillis
+    if (openRouterModelsCache && openRouterModelsCache.expiresAt > now) {
       return openRouterModelsCache.payload
     }
 
@@ -145,7 +146,7 @@ function fetchOpenRouterModelsPayload(fetcher: typeof fetch) {
       return yield* Effect.fail(new UpstreamError({ message: `OpenRouter model list failed with HTTP ${response.status}`, status: response.status }))
     }
 
-    openRouterModelsCache = { expiresAt: Date.now() + OPENROUTER_MODELS_CACHE_TTL_MS, payload }
+    openRouterModelsCache = { expiresAt: now + OPENROUTER_MODELS_CACHE_TTL_MS, payload }
     return payload
   })
 }
