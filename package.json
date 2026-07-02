@@ -1,7 +1,6 @@
 {
   "name": "@codewithkenzo/pi-clinepass",
   "version": "0.1.0",
-  "private": true,
   "description": "Native Pi provider extension for ClinePass OAuth models.",
   "repository": {
     "type": "git",
@@ -19,12 +18,14 @@
     "provider"
   ],
   "type": "module",
+  "main": "./dist/index.js",
   "files": [
+    "dist",
     "assets",
-    "src",
     "README.md"
   ],
   "scripts": {
+    "build": "bun build ./src/index.ts --outfile ./dist/index.js --target node",
     "typecheck": "tsc --noEmit",
     "test": "bun test"
   },
@@ -43,7 +44,7 @@
   },
   "pi": {
     "extensions": [
-      "./src/index.ts"
+      "./dist/index.js"
     ]
   }
 }
