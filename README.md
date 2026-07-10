@@ -21,15 +21,6 @@ Primary model: `glm-5.2`.
 
 ## Install locally
 
-From a checkout:
-
-```bash
-bun install
-bun run typecheck
-bun test
-pi install .
-```
-
 From npm:
 
 ```bash
@@ -40,6 +31,15 @@ From GitHub:
 
 ```bash
 pi install git:github.com/codewithkenzo/pi-clinepass
+```
+
+From a checkout:
+
+```bash
+bun install
+bun run typecheck
+bun test
+pi install .
 ```
 
 Or add a local checkout manually to `~/.pi/agent/settings.json`:
