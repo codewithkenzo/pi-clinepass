@@ -12,6 +12,7 @@ import {
 } from "../src/discovery.ts"
 import { CLINEPASS_BASE_URL } from "../src/config.ts"
 import { CLINEPASS_PROVIDER_ID } from "../src/constants.ts"
+import type { ExtensionContext, MessageEndEvent } from "../src/pi-types.ts"
 
 const originalFetch = globalThis.fetch
 
@@ -146,6 +147,60 @@ describe("ClinePass model discovery/config", () => {
 })
 
 describe("Pi provider extension", () => {
+  it("falls back to static models when live discovery fails", async () => {
+    globalThis.fetch = mock(async () =>
+      jsonResponse({}, { status: 503 }),
+    ) as unknown as typeof fetch
+    const registerProvider = mock(() => undefined)
+
+    await extension({ registerProvider } as never)
+
+    const config = (
+      registerProvider.mock.calls[0] as unknown as [string, { models: Array<{ id: string }> }]
+    )[1]
+    expect(config.models.map((model) => model.id)).toEqual([
+      "glm-5.2",
+      "qwen3.7-max",
+      "qwen3.7-plus",
+      "kimi-k2.7-code",
+      "deepseek-v4-pro",
+      "deepseek-v4-flash",
+      "minimax-m3",
+    ])
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1)
+  })
+
+  it("wires message_end errors through the extension handler", async () => {
+    globalThis.fetch = mock(async () =>
+      jsonResponse({ clinePass: [{ id: "cline-pass/glm-5.2" }] }),
+    ) as unknown as typeof fetch
+    const registerProvider = mock(() => undefined)
+    const on = mock(() => undefined)
+
+    await extension({ registerProvider, on } as never)
+
+    const [eventName, handler] = on.mock.calls[0] as unknown as [
+      string,
+      (event: MessageEndEvent, ctx: ExtensionContext) => void,
+    ]
+    const notify = mock(() => undefined)
+    handler(
+      {
+        type: "message_end",
+        message: {
+          role: "assistant",
+          provider: CLINEPASS_PROVIDER_ID,
+          stopReason: "error",
+          errorMessage: "HTTP 401 unauthorized",
+        },
+      },
+      { ui: { notify } },
+    )
+
+    expect(eventName).toBe("message_end")
+    expect(notify).toHaveBeenCalledWith("ClinePass auth expired. Run /login to refresh.")
+  })
+
   it("registers ClinePass provider with models and OAuth object", async () => {
     globalThis.fetch = mock(async () =>
       jsonResponse({
