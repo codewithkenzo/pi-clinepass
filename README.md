@@ -6,9 +6,7 @@
 
 ![pi-clinepass](assets/pi-clinepass-hero.png)
 
-ClinePass models inside Pi through Pi's native provider system.
-
-`pi-clinepass` registers a real `clinepass` provider with OAuth device login, live ClinePass model discovery, Pi-compatible OpenAI chat transport, prompt cache markers, and reasoning controls tuned for GLM/Qwen/Kimi/DeepSeek-style models.
+Use ClinePass models (GLM-5.2, Kimi K2.7, DeepSeek V4, Qwen3.7, MiniMax M3) in Pi. Log in with a browser device code, pick a model, start coding.
 
 ## What works
 
@@ -21,7 +19,7 @@ ClinePass models inside Pi through Pi's native provider system.
 - Reasoning: Pi thinking levels map to ClinePass-compatible `reasoning` params
 - Prompt caching: Pi emits Anthropic-style cache-control markers where supported
 
-**No Cline CLI needed. No API key needed. OAuth device-code flow works standalone.**
+Log in through your browser. That is the full auth path.
 
 ## Install locally
 
@@ -80,8 +78,6 @@ pi --model clinepass/glm-5.2 "Say OK"
 4. Extension polls WorkOS until authorization completes.
 5. Extension exchanges WorkOS tokens with Cline's auth API and returns OAuth credentials to Pi.
 6. Pi uses refreshed Cline access tokens for model requests.
-
-No Cline desktop or CLI installation participates in this flow. OAuth device-code login works as a standalone Pi extension.
 
 ## Model discovery
 
