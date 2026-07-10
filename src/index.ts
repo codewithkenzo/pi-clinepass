@@ -8,6 +8,7 @@ import {
   toClinePassUpstreamModelId,
 } from "./discovery.js"
 import { createClinePassOAuthProvider } from "./pi-oauth.js"
+import { handleClinePassError } from "./error-handler.js"
 import type { Api, Context, ExtensionAPI, Model, SimpleStreamOptions } from "./pi-types.js"
 
 function withUpstreamModelId(model: Model<Api>): Model<"openai-completions"> {
@@ -40,4 +41,6 @@ export default async function (pi: ExtensionAPI): Promise<void> {
     },
     oauth: createClinePassOAuthProvider(),
   })
+
+  pi.on?.("message_end", (event, ctx) => handleClinePassError(event, ctx))
 }

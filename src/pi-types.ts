@@ -23,7 +23,21 @@ export type ToolCall = {
 export type Message = {
   readonly role: string
   readonly content?: unknown
+  readonly provider?: string
+  readonly stopReason?: string
+  readonly errorMessage?: string
   readonly [key: string]: unknown
+}
+
+export type MessageEndEvent = {
+  readonly type: "message_end"
+  readonly message: Message
+}
+
+export type ExtensionContext = {
+  readonly ui?: {
+    readonly notify?: (message: string) => void
+  }
 }
 export type Tool = {
   readonly name: string
@@ -127,4 +141,8 @@ export type ProviderConfig = {
 
 export type ExtensionAPI = {
   readonly registerProvider: (providerId: string, config: ProviderConfig) => void
+  readonly on?: (
+    event: "message_end",
+    handler: (event: MessageEndEvent, ctx: ExtensionContext) => void,
+  ) => void
 }

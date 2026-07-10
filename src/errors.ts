@@ -18,3 +18,9 @@ export class UpstreamError extends Data.TaggedError("UpstreamError")<{
   readonly body?: string
   readonly cause?: unknown
 }> {}
+
+export class ProviderError extends Data.TaggedError("ProviderError")<{
+  readonly message: string
+  readonly status?: number
+  readonly type: "not_subscribed" | "auth_expired" | "rate_limited" | "unknown"
+}> {}
