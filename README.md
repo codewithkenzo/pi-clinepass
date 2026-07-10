@@ -10,16 +10,16 @@ Use ClinePass models (GLM-5.2, Kimi K2.7, DeepSeek V4, Qwen3.7, MiniMax M3) in P
 
 ## What works
 
-- Provider id: `clinepass`
-- Primary model: `glm-5.2`
-- Auth: Pi `/login` OAuth device-code flow
-- Model list: live Cline recommended-models endpoint, filtered to `clinePass[]`
-- Transport: `openai-completions` against `https://api.cline.bot/api/v1`
-- Token handling: Pi stores OAuth credentials; this package returns `workos:<access>` only to Pi's provider auth path
-- Reasoning: Pi thinking levels map to ClinePass-compatible `reasoning` params
-- Prompt caching: Pi emits Anthropic-style cache-control markers where supported
+This is a real Pi provider (`clinepass`), not a wrapper script. After `/login` you get live models from Cline's recommended list, OpenAI-completions transport to `https://api.cline.bot/api/v1`, and Pi-stored OAuth credentials that only surface as `workos:<access>` on the wire.
 
-Log in through your browser. That is the full auth path.
+Things I actually needed to get right:
+
+- Device-code OAuth through WorkOS + Cline register/refresh (no pasted API key)
+- Live model discovery with a static fallback when the recommended-models endpoint is down
+- Per-model context windows, max tokens, reasoning flags, and thinking-level maps
+- Prompt-cache markers and reasoning params that ClinePass actually honors
+
+Default model to try first: `glm-5.2`.
 
 ## Install locally
 
@@ -74,10 +74,20 @@ pi --model clinepass/glm-5.2 "Say OK"
 
 1. `/login` starts a WorkOS OAuth device authorization request.
 2. Pi shows a verification URL and one-time device code.
-3. Open URL on any browser, enter code, then approve ClinePass access.
-4. Extension polls WorkOS until authorization completes.
-5. Extension exchanges WorkOS tokens with Cline's auth API and returns OAuth credentials to Pi.
-6. Pi uses refreshed Cline access tokens for model requests.
+3. Open that URL on any browser, enter the code, approve access.
+4. The extension polls WorkOS until you finish.
+5. It registers the WorkOS tokens with Cline auth and hands Pi OAuth credentials.
+6. Later requests use refreshed Cline access tokens.
+
+Protocol detail (same flow, wire level):
+
+1. WorkOS device auth with Cline's production client id
+2. Poll WorkOS until approved
+3. `POST /api/v1/auth/register` with WorkOS tokens
+4. `POST /api/v1/auth/refresh` when access is near expiry
+5. Requests go out as `Authorization: Bearer workos:<access>`
+
+Token rule: this repo never logs access or refresh tokens.
 
 ## Model discovery
 
@@ -87,7 +97,7 @@ The extension fetches:
 https://api.cline.bot/api/v1/ai/cline/recommended-models
 ```
 
-It reads `clinePass[]`, dedupes model ids, then enriches context/output limits from OpenRouter's public model catalog by model slug. A static table covers known ClinePass models when OpenRouter omits fields.
+It reads `clinePass[]`, dedupes model ids, then enriches context/output limits from OpenRouter's public model catalog by model slug. A static table covers known ClinePass models when OpenRouter omits fields. If the live list fails, you still get the fallback set (you will see a stderr line about it).
 
 Known models:
 
@@ -100,20 +110,6 @@ Known models:
 | `deepseek-v4-pro`   |      1,048,576 |           384,000 |    Yes    |
 | `deepseek-v4-flash` |      1,048,576 |            65,536 |    Yes    |
 | `minimax-m3`        |      1,048,576 |           512,000 |    Yes    |
-
-## OAuth behavior
-
-Flow:
-
-1. Start WorkOS device auth with Cline's production client id.
-2. Show Pi device-code/browser callbacks.
-3. Poll WorkOS until approved.
-4. Register WorkOS tokens with Cline `/api/v1/auth/register`.
-5. Return Pi `OAuthCredentials` with Cline access/refresh/expires metadata.
-6. Refresh through Cline `/api/v1/auth/refresh` when needed.
-7. Send requests with `Authorization: Bearer workos:<access>`.
-
-Token rule: this repo never logs access or refresh tokens.
 
 ## ClinePass compatibility
 
@@ -144,6 +140,8 @@ Why `thinkingFormat: "together"`:
 - `{ reasoning: { enabled: false } }` suppresses GLM reasoning.
 - Pi's OpenRouter-style off state emits `{ reasoning: { effort: "none" } }`, which ClinePass does not suppress.
 - z.ai-native `thinking: { type: "disabled" }` is also ignored by ClinePass.
+
+I hit all three shapes while wiring this. Together-format is the one that actually turns reasoning off on the gateway.
 
 ## Development
 
