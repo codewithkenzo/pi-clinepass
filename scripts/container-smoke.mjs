@@ -66,6 +66,11 @@ try {
     "-p",
     "Reply exactly NO_AUTH_SHOULD_NOT_STREAM",
   ])
+  if (noAuth.code !== 1 || noAuth.signal !== null) {
+    throw new Error(
+      `No-auth smoke returned wrong process contract (code=${noAuth.code}, signal=${noAuth.signal}):\n${noAuth.output}`,
+    )
+  }
   if (!noAuth.output.includes("No API key found for clinepass")) {
     throw new Error(`No-auth smoke returned wrong failure (${noAuth.code}):\n${noAuth.output}`)
   }
