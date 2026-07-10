@@ -31,17 +31,18 @@ jobs:
         id: runtime
         run: |
           latest="$(npm view @earendil-works/pi-ai version)"
-          if ! [[ "$latest" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
-            echo "npm returned invalid semver: $latest" >&2
+          if ! [[ "$latest" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "npm returned invalid stable semver: $latest" >&2
             exit 1
           fi
           current="$(bun -e 'const p=await Bun.file("package.json").json(); console.log(p.dependencies["@codewithkenzo/pi-ai-runtime"].split("@").at(-1))')"
           echo "current=$current latest=$latest"
-          if [ "$current" = "$latest" ]; then
+          bun scripts/update-runtime.ts "$latest"
+          if git diff --quiet -- package.json; then
+            test -z "$(git diff --name-only)" || { echo "Updater changed unexpected files" >&2; exit 1; }
             echo "changed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          bun scripts/update-runtime.ts "$latest"
           bun install --lockfile-only
           bun install --frozen-lockfile
           expected="npm:@earendil-works/pi-ai@$latest"

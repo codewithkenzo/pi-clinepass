@@ -10,7 +10,11 @@ import {
   requireSuccess,
   runCommand,
 } from "./package-artifact.ts"
-import { assertValidPackageMetadata } from "./package-metadata.ts"
+import {
+  assertValidPackageMetadata,
+  runtimeVersionFromAlias,
+  runtimeAliasFromManifest,
+} from "./package-metadata.ts"
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)))
 const temporaryRoot = await mkdtemp(join(tmpdir(), "pi-clinepass-package-contract-"))
@@ -30,6 +34,11 @@ try {
   const files = await listTarball(tarball)
   const manifest = await readTarballManifest(tarball)
   assertValidPackageMetadata(manifest, files)
+  const runtimeAlias = runtimeAliasFromManifest(manifest)
+  const targetRuntimeVersion = runtimeVersionFromAlias(runtimeAlias)
+  if (!runtimeAlias || !targetRuntimeVersion) {
+    throw new Error("Packed manifest runtime alias is not an exact stable version")
+  }
 
   const consumer = join(temporaryRoot, "consumer")
   await mkdir(consumer, { recursive: true })
@@ -62,7 +71,17 @@ try {
       )
     }
   }
-  await access(join(consumer, "node_modules", "@codewithkenzo", "pi-ai-runtime", "package.json"))
+  const installedRuntimeManifest = await Bun.file(
+    join(consumer, "node_modules", "@codewithkenzo", "pi-ai-runtime", "package.json"),
+  ).json()
+  if (
+    typeof installedRuntimeManifest !== "object" ||
+    installedRuntimeManifest === null ||
+    !("version" in installedRuntimeManifest) ||
+    installedRuntimeManifest.version !== targetRuntimeVersion
+  ) {
+    throw new Error(`Installed runtime version must equal alias target ${targetRuntimeVersion}`)
+  }
   await access(join(consumer, "node_modules", "effect", "package.json"))
 
   const installPi = await runCommand(

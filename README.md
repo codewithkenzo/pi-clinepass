@@ -185,8 +185,8 @@ Runtime updates run weekly from `.github/workflows/update-runtime.yml`. Configur
 `RUNTIME_UPDATE_TOKEN` as a fine-grained personal access token or GitHub App token with repository
 **Contents: read/write** and **Pull requests: read/write**. GitHub's default workflow token is not
 used because pull requests created by it do not trigger `pull_request` CI. The updater keeps one
-`automation/pi-ai-runtime` branch, pins an exact runtime version, and never auto-merges; full CI and
-review remain required.
+`automation/pi-ai-runtime` branch, pins an exact runtime version only when npm latest is newer, and
+never downgrades or auto-merges; full CI and review remain required.
 
 npm publication uses trusted publishing (OIDC) from `.github/workflows/publish.yml`; do not add an
 `NPM_TOKEN`. Configure that repository/workflow as the trusted publisher in npm. Create a published

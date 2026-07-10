@@ -1,8 +1,8 @@
-import { afterEach, describe, expect, it, mock } from "bun:test"
-import { Effect } from "effect"
+import { describe, expect, it, mock } from "bun:test"
+import { Cache, Effect } from "effect"
 import {
   buildClinePassModels,
-  clearOpenRouterModelsCache,
+  makeOpenRouterModelsCache,
   fallbackClinePassModels,
   fetchOpenRouterModelSpecs,
   parseClinePassModelEntries,
@@ -16,8 +16,6 @@ import {
   CLINEPASS_PROVIDER_ID,
   DEFAULT_THINKING_LEVEL_MAP,
 } from "../src/constants.ts"
-
-afterEach(clearOpenRouterModelsCache)
 
 function jsonResponse(value: unknown) {
   return new Response(JSON.stringify(value), {
@@ -141,24 +139,43 @@ describe("ClinePass discovery edge cases", () => {
     }
   })
 
-  it("keeps cached OpenRouter enrichment until cache is cleared", async () => {
+  it("keeps cached OpenRouter enrichment until its explicit cache is invalidated", async () => {
     const entries = [{ id: "future", upstreamId: "cline-pass/future" }]
-    const firstFetcher = mock(async () =>
-      jsonResponse({ data: [{ id: "vendor/future", context_length: 100_000 }] }),
+    let contextWindow = 100_000
+    const fetcher = mock(async () =>
+      jsonResponse({ data: [{ id: "vendor/future", context_length: contextWindow }] }),
     ) as unknown as typeof fetch
-    const freshFetcher = mock(async () =>
-      jsonResponse({ data: [{ id: "vendor/future", context_length: 200_000 }] }),
-    ) as unknown as typeof fetch
+    const cache = await Effect.runPromise(makeOpenRouterModelsCache(fetcher))
 
-    const first = await Effect.runPromise(fetchOpenRouterModelSpecs(entries, firstFetcher))
-    const stale = await Effect.runPromise(fetchOpenRouterModelSpecs(entries, freshFetcher))
+    const first = await Effect.runPromise(fetchOpenRouterModelSpecs(entries, cache))
+    contextWindow = 200_000
+    const stale = await Effect.runPromise(fetchOpenRouterModelSpecs(entries, cache))
     expect(first.future?.contextWindow).toBe(100_000)
     expect(stale).toEqual(first)
-    expect(freshFetcher).not.toHaveBeenCalled()
+    expect(fetcher).toHaveBeenCalledTimes(1)
 
-    clearOpenRouterModelsCache()
-    const fresh = await Effect.runPromise(fetchOpenRouterModelSpecs(entries, freshFetcher))
+    await Effect.runPromise(Cache.invalidate(cache, "models"))
+    const fresh = await Effect.runPromise(fetchOpenRouterModelSpecs(entries, cache))
     expect(fresh.future?.contextWindow).toBe(200_000)
-    expect(freshFetcher).toHaveBeenCalledTimes(1)
+    expect(fetcher).toHaveBeenCalledTimes(2)
+  })
+
+  it("shares one OpenRouter lookup across concurrent gets on the same cache", async () => {
+    const entries = [{ id: "future", upstreamId: "cline-pass/future" }]
+    const fetcher = mock(async () => {
+      await Promise.resolve()
+      return jsonResponse({ data: [{ id: "vendor/future", context_length: 100_000 }] })
+    }) as unknown as typeof fetch
+    const cache = await Effect.runPromise(makeOpenRouterModelsCache(fetcher))
+
+    const [first, second] = await Effect.runPromise(
+      Effect.all(
+        [fetchOpenRouterModelSpecs(entries, cache), fetchOpenRouterModelSpecs(entries, cache)],
+        { concurrency: "unbounded" },
+      ),
+    )
+
+    expect(first).toEqual(second)
+    expect(fetcher).toHaveBeenCalledTimes(1)
   })
 })

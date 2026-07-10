@@ -20,8 +20,8 @@ import extension, {
 } from "../src/index.ts"
 import {
   buildClinePassModels,
-  clearOpenRouterModelsCache,
   fetchOpenRouterModelSpecs,
+  makeOpenRouterModelsCache,
   parseClinePassModelEntries,
   parseOpenRouterModelSpecs,
   toClinePassModelConfig,
@@ -38,7 +38,6 @@ const originalStderrWrite = process.stderr.write.bind(process.stderr)
 afterEach(() => {
   globalThis.fetch = originalFetch
   process.stderr.write = originalStderrWrite
-  clearOpenRouterModelsCache()
 })
 
 function jsonResponse(value: unknown, init?: ResponseInit) {
@@ -190,8 +189,9 @@ describe("ClinePass model discovery/config", () => {
       }),
     ) as unknown as typeof fetch
 
-    const first = await Effect.runPromise(fetchOpenRouterModelSpecs(entries, fetcher))
-    const second = await Effect.runPromise(fetchOpenRouterModelSpecs(entries, fetcher))
+    const cache = await Effect.runPromise(makeOpenRouterModelsCache(fetcher))
+    const first = await Effect.runPromise(fetchOpenRouterModelSpecs(entries, cache))
+    const second = await Effect.runPromise(fetchOpenRouterModelSpecs(entries, cache))
 
     expect(first).toEqual(second)
     expect(fetcher).toHaveBeenCalledTimes(1)
@@ -289,6 +289,41 @@ describe("Pi provider extension", () => {
       expect(notice).not.toContain("DISCOVERY_SECRET")
     })
   }
+
+  it("catches discovery defects once without leaking defect details", async () => {
+    const sentinel = "DEFECT_TOKEN_SENTINEL"
+    const stderrWrite = mock((_chunk: string | Uint8Array) => true)
+    process.stderr.write = stderrWrite as unknown as typeof process.stderr.write
+    const response = {
+      status: 200,
+      json: async () => ({ clinePass: [{ id: "cline-pass/glm-5.2" }] }),
+      get ok() {
+        throw new Error(sentinel)
+      },
+    } as unknown as Response
+    const fetcher = mock(async () => response) as unknown as typeof fetch
+
+    const models = await Effect.runPromise(loadClinePassModels(fetcher))
+
+    expect(models).toEqual(expect.arrayContaining([expect.objectContaining({ id: "glm-5.2" })]))
+    expect(stderrWrite).toHaveBeenCalledTimes(1)
+    const notice = String(stderrWrite.mock.calls[0]?.[0])
+    expect(notice).toContain("Unexpected discovery failure")
+    expect(notice).not.toContain(sentinel)
+  })
+
+  it("returns fallback models when stderr logging throws", async () => {
+    const stderrWrite = mock(() => {
+      throw new Error("STDERR_SENTINEL")
+    })
+    process.stderr.write = stderrWrite as unknown as typeof process.stderr.write
+    const fetcher = mock(async () => jsonResponse({ clinePass: [] })) as unknown as typeof fetch
+
+    const models = await Effect.runPromise(loadClinePassModels(fetcher))
+
+    expect(models).toEqual(expect.arrayContaining([expect.objectContaining({ id: "glm-5.2" })]))
+    expect(stderrWrite).toHaveBeenCalledTimes(1)
+  })
 
   it("wires message_end errors through the extension handler", async () => {
     globalThis.fetch = mock(async () =>

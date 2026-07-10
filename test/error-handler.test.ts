@@ -78,6 +78,20 @@ describe("classifyClinePassError", () => {
       message: "ClinePass request failed. Run /login or check subscription.",
     })
   })
+
+  it("ignores unknown nested object fields instead of serializing them", () => {
+    const error = {
+      payload: { error: "invalid_api_key", token: "OBJECT_TOKEN_SENTINEL" },
+      toJSON() {
+        throw new Error("JSON serialization must not run")
+      },
+    }
+
+    expect(classifyClinePassError(error)).toMatchObject({
+      type: "unknown",
+      message: "ClinePass request failed. Run /login or check subscription.",
+    })
+  })
 })
 
 describe("handleClinePassError", () => {

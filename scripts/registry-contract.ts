@@ -10,7 +10,13 @@ import {
   requireSuccess,
   runCommand,
 } from "./package-artifact.ts"
-import { assertValidPackageMetadata, EXPECTED_PACKAGE } from "./package-metadata.ts"
+import {
+  assertValidPackageMetadata,
+  effectFromManifest,
+  EXPECTED_PACKAGE,
+  REQUIRED_PACKAGE_FILES,
+  runtimeAliasFromManifest,
+} from "./package-metadata.ts"
 
 const version = process.argv[2]
 if (!version || !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(version)) {
@@ -73,6 +79,29 @@ async function pathExists(path: string): Promise<boolean> {
 }
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)))
+const releaseManifest: unknown = await Bun.file(join(repoRoot, "package.json")).json()
+const releaseVersion =
+  typeof releaseManifest === "object" &&
+  releaseManifest !== null &&
+  "version" in releaseManifest &&
+  typeof releaseManifest.version === "string"
+    ? releaseManifest.version
+    : undefined
+const releaseRuntimeAlias = runtimeAliasFromManifest(releaseManifest)
+const releaseEffect = effectFromManifest(releaseManifest)
+if (releaseVersion !== version) {
+  throw new Error(`Release manifest version ${String(releaseVersion)} does not match ${version}`)
+}
+if (!releaseRuntimeAlias)
+  throw new Error("Release manifest runtime alias must be exact stable semver")
+if (!releaseEffect) throw new Error("Release manifest Effect dependency missing")
+const releaseExpectations = {
+  expectedVersion: releaseVersion,
+  expectedRuntimeAlias: releaseRuntimeAlias,
+  expectedEffect: releaseEffect,
+}
+assertValidPackageMetadata(releaseManifest, REQUIRED_PACKAGE_FILES, releaseExpectations)
+
 const temporaryRoot = await mkdtemp(join(tmpdir(), "pi-clinepass-registry-contract-"))
 
 try {
@@ -80,8 +109,8 @@ try {
   const tarball = await packRegistryArtifact(specifier, join(temporaryRoot, "pack"))
   const files = await listTarball(tarball)
   const packedManifest = await readTarballManifest(tarball)
-  assertValidPackageMetadata(metadata, files, version)
-  assertValidPackageMetadata(packedManifest, files, version)
+  assertValidPackageMetadata(metadata, files, releaseExpectations)
+  assertValidPackageMetadata(packedManifest, files, releaseExpectations)
   const expectedIntegrity = registryIntegrity(metadata)
   const actualIntegrity = await sha512Integrity(tarball)
   if (actualIntegrity !== expectedIntegrity) {

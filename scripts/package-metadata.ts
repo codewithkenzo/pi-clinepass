@@ -3,9 +3,11 @@ export const EXPECTED_PACKAGE = {
   version: "0.1.1",
   license: "MIT",
   main: "./src/index.ts",
-  runtimeAlias: "npm:@earendil-works/pi-ai@0.80.6",
+  runtimePackage: "@earendil-works/pi-ai",
   effect: "^4.0.0-beta.93",
 } as const
+
+export const RUNTIME_ALIAS_DEPENDENCY = "@codewithkenzo/pi-ai-runtime"
 
 export const REQUIRED_PACKAGE_FILES = [
   "package.json",
@@ -17,6 +19,7 @@ export const REQUIRED_PACKAGE_FILES = [
   "src/discovery.ts",
   "src/error-handler.ts",
   "src/errors.ts",
+  "src/http.ts",
   "src/index.ts",
   "src/pi-oauth.ts",
 ] as const
@@ -31,6 +34,15 @@ const FORBIDDEN_PACKAGE_PATHS = [
   /^\.ox(?:lint|fmt)rc\.json$/,
 ]
 
+const STABLE_SEMVER = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/
+const RUNTIME_ALIAS_PREFIX = `npm:${EXPECTED_PACKAGE.runtimePackage}@`
+
+export interface PackageMetadataExpectations {
+  readonly expectedVersion?: string
+  readonly expectedRuntimeAlias?: string
+  readonly expectedEffect?: string
+}
+
 function record(value: unknown): Record<string, unknown> | undefined {
   return typeof value === "object" && value !== null && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -43,14 +55,36 @@ function stringArray(value: unknown): readonly string[] | undefined {
     : undefined
 }
 
+export function runtimeVersionFromAlias(value: unknown): string | undefined {
+  if (typeof value !== "string" || !value.startsWith(RUNTIME_ALIAS_PREFIX)) return undefined
+  const version = value.slice(RUNTIME_ALIAS_PREFIX.length)
+  return STABLE_SEMVER.test(version) ? version : undefined
+}
+
+export function runtimeAliasFromManifest(manifest: unknown): string | undefined {
+  const value = record(manifest)
+  const dependencies = record(value?.dependencies)
+  const alias = dependencies?.[RUNTIME_ALIAS_DEPENDENCY]
+  return runtimeVersionFromAlias(alias) ? (alias as string) : undefined
+}
+
+export function effectFromManifest(manifest: unknown): string | undefined {
+  const value = record(manifest)
+  const dependencies = record(value?.dependencies)
+  return typeof dependencies?.effect === "string" ? dependencies.effect : undefined
+}
+
 export function validatePackageMetadata(
   manifest: unknown,
   files: readonly string[],
-  expectedVersion: string = EXPECTED_PACKAGE.version,
+  expectations: PackageMetadataExpectations = {},
 ): string[] {
   const issues: string[] = []
   const value = record(manifest)
   if (!value) return ["package manifest must be an object"]
+
+  const expectedVersion = expectations.expectedVersion ?? EXPECTED_PACKAGE.version
+  const expectedEffect = expectations.expectedEffect ?? EXPECTED_PACKAGE.effect
 
   if (value.name !== EXPECTED_PACKAGE.name) issues.push(`name must be ${EXPECTED_PACKAGE.name}`)
   if (value.version !== expectedVersion) issues.push(`version must be ${expectedVersion}`)
@@ -62,12 +96,16 @@ export function validatePackageMetadata(
   if (publishConfig?.access !== "public") issues.push("publishConfig.access must be public")
 
   const dependencies = record(value.dependencies)
-  if (dependencies?.["@codewithkenzo/pi-ai-runtime"] !== EXPECTED_PACKAGE.runtimeAlias) {
-    issues.push(`runtime alias must be ${EXPECTED_PACKAGE.runtimeAlias}`)
+  const runtimeAlias = dependencies?.[RUNTIME_ALIAS_DEPENDENCY]
+  if (!runtimeVersionFromAlias(runtimeAlias)) {
+    issues.push(`runtime alias must be an exact npm:${EXPECTED_PACKAGE.runtimePackage}@<x.y.z> pin`)
+  } else if (
+    expectations.expectedRuntimeAlias !== undefined &&
+    runtimeAlias !== expectations.expectedRuntimeAlias
+  ) {
+    issues.push(`runtime alias must be ${expectations.expectedRuntimeAlias}`)
   }
-  if (dependencies?.effect !== EXPECTED_PACKAGE.effect) {
-    issues.push(`effect must be ${EXPECTED_PACKAGE.effect}`)
-  }
+  if (dependencies?.effect !== expectedEffect) issues.push(`effect must be ${expectedEffect}`)
   if ("peerDependencies" in value) issues.push("peerDependencies must be absent")
 
   const pi = record(value.pi)
@@ -91,8 +129,8 @@ export function validatePackageMetadata(
 export function assertValidPackageMetadata(
   manifest: unknown,
   files: readonly string[],
-  expectedVersion?: string,
+  expectations?: PackageMetadataExpectations,
 ): void {
-  const issues = validatePackageMetadata(manifest, files, expectedVersion)
+  const issues = validatePackageMetadata(manifest, files, expectations)
   if (issues.length > 0) throw new Error(`Package contract failed:\n- ${issues.join("\n- ")}`)
 }

@@ -1,4 +1,4 @@
-import { Clock, Effect } from "effect"
+import { Cache, Effect } from "effect"
 import { CLINE_MODELS_URL, CLINEPASS_BASE_URL, OPENROUTER_MODELS_URL } from "./config.js"
 import {
   CLINE_CLIENT_HEADERS,
@@ -9,6 +9,7 @@ import {
   modelSpecsFor,
 } from "./constants.js"
 import { UpstreamError } from "./errors.js"
+import { decodeJson } from "./http.js"
 import type { Model } from "@codewithkenzo/pi-ai-runtime"
 
 export interface RecommendedModelsResponse {
@@ -29,9 +30,6 @@ export type ClinePassModel = Omit<Model<"openai-completions">, "api"> & {
 
 type PartialModelSpec = Partial<ClinePassModelSpec>
 type ModelSpecsById = Readonly<Record<string, PartialModelSpec>>
-
-const OPENROUTER_MODELS_CACHE_TTL_MS = 60 * 60 * 1000
-let openRouterModelsCache: { readonly expiresAt: number; readonly payload: unknown } | undefined
 
 const FALLBACK_MODELS: readonly ClinePassModelEntry[] = [
   { id: "glm-5.2", upstreamId: "cline-pass/glm-5.2", name: "GLM 5.2" },
@@ -86,18 +84,6 @@ function uniqueModels(entries: readonly ClinePassModelEntry[]): ClinePassModelEn
   return result
 }
 
-function decodeJson<T>(response: Response, label: string) {
-  return Effect.tryPromise({
-    try: () => response.json() as Promise<T>,
-    catch: (cause) =>
-      new UpstreamError({
-        message: `${label} returned invalid JSON`,
-        status: response.status,
-        cause,
-      }),
-  })
-}
-
 export function parseClinePassModelEntries(
   payload: RecommendedModelsResponse,
 ): ClinePassModelEntry[] {
@@ -114,10 +100,13 @@ export function fetchClinePassModelEntries(fetcher: typeof fetch = fetch) {
   return Effect.gen(function* () {
     const response = yield* Effect.tryPromise({
       try: () => fetcher(CLINE_MODELS_URL, { headers: { accept: "application/json" } }),
-      catch: (cause) =>
-        new UpstreamError({ message: "Failed to fetch ClinePass model list", cause }),
+      catch: () => new UpstreamError({ message: "Failed to fetch ClinePass model list" }),
     })
-    const payload = yield* decodeJson<RecommendedModelsResponse>(response, "ClinePass model list")
+    const payload = yield* decodeJson<RecommendedModelsResponse, UpstreamError>(
+      response,
+      "ClinePass model list",
+      (failure) => new UpstreamError(failure),
+    )
     if (!response.ok) {
       return yield* Effect.fail(
         new UpstreamError({
@@ -173,23 +162,17 @@ export function parseOpenRouterModelSpecs(
   return specs
 }
 
-export function clearOpenRouterModelsCache(): void {
-  openRouterModelsCache = undefined
-}
-
 function fetchOpenRouterModelsPayload(fetcher: typeof fetch) {
   return Effect.gen(function* () {
-    const now = yield* Clock.currentTimeMillis
-    if (openRouterModelsCache && openRouterModelsCache.expiresAt > now) {
-      return openRouterModelsCache.payload
-    }
-
     const response = yield* Effect.tryPromise({
       try: () => fetcher(OPENROUTER_MODELS_URL, { headers: { accept: "application/json" } }),
-      catch: (cause) =>
-        new UpstreamError({ message: "Failed to fetch OpenRouter model list", cause }),
+      catch: () => new UpstreamError({ message: "Failed to fetch OpenRouter model list" }),
     })
-    const payload = yield* decodeJson<unknown>(response, "OpenRouter model list")
+    const payload = yield* decodeJson<unknown, UpstreamError>(
+      response,
+      "OpenRouter model list",
+      (failure) => new UpstreamError(failure),
+    )
     if (!response.ok) {
       return yield* Effect.fail(
         new UpstreamError({
@@ -198,17 +181,27 @@ function fetchOpenRouterModelsPayload(fetcher: typeof fetch) {
         }),
       )
     }
-
-    openRouterModelsCache = { expiresAt: now + OPENROUTER_MODELS_CACHE_TTL_MS, payload }
     return payload
+  })
+}
+
+export type OpenRouterModelsCache = Cache.Cache<"models", unknown, UpstreamError>
+
+export function makeOpenRouterModelsCache(
+  fetcher: typeof fetch = fetch,
+): Effect.Effect<OpenRouterModelsCache> {
+  return Cache.make({
+    capacity: 1,
+    timeToLive: "1 hour",
+    lookup: () => fetchOpenRouterModelsPayload(fetcher),
   })
 }
 
 export function fetchOpenRouterModelSpecs(
   entries: readonly ClinePassModelEntry[],
-  fetcher: typeof fetch = fetch,
+  cache: OpenRouterModelsCache,
 ) {
-  return fetchOpenRouterModelsPayload(fetcher).pipe(
+  return Cache.get(cache, "models").pipe(
     Effect.map((payload) => parseOpenRouterModelSpecs(payload, entries)),
   )
 }
@@ -271,10 +264,14 @@ export function buildClinePassModels(
   return uniqueModels(entries).map((entry) => toClinePassModelConfig(entry, discoveredSpecs))
 }
 
-export function discoverClinePassModels(fetcher: typeof fetch = fetch) {
+export function discoverClinePassModels(
+  fetcher: typeof fetch = fetch,
+  cache?: OpenRouterModelsCache,
+) {
   return Effect.gen(function* () {
     const entries = yield* fetchClinePassModelEntries(fetcher)
-    const discoveredSpecs = yield* fetchOpenRouterModelSpecs(entries, fetcher).pipe(
+    const openRouterCache = cache ?? (yield* makeOpenRouterModelsCache(fetcher))
+    const discoveredSpecs = yield* fetchOpenRouterModelSpecs(entries, openRouterCache).pipe(
       Effect.catchTag("UpstreamError", () => Effect.succeed({} satisfies ModelSpecsById)),
     )
     return buildClinePassModels(entries, discoveredSpecs)

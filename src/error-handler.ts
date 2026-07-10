@@ -40,7 +40,7 @@ function errorText(error: unknown): string {
   if (error instanceof Error) return `${error.name} ${error.message}`
 
   const record = asRecord(error)
-  if (!record) return String(error)
+  if (!record) return ""
 
   const fields = [record.message, record.errorMessage, record.body, record.code]
     .filter(
@@ -48,11 +48,7 @@ function errorText(error: unknown): string {
     )
     .join(" ")
 
-  try {
-    return `${fields} ${JSON.stringify(error)}`
-  } catch {
-    return fields
-  }
+  return fields
 }
 
 /** Classify provider failures without exposing upstream error text to users. */

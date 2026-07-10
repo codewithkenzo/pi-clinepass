@@ -5,6 +5,8 @@ import {
   validatePackageMetadata,
 } from "../scripts/package-metadata.ts"
 
+const CURRENT_RUNTIME_ALIAS = "npm:@earendil-works/pi-ai@0.80.6"
+
 function validManifest(): {
   name: string
   version: string
@@ -21,7 +23,7 @@ function validManifest(): {
     main: EXPECTED_PACKAGE.main,
     publishConfig: { access: "public" },
     dependencies: {
-      "@codewithkenzo/pi-ai-runtime": EXPECTED_PACKAGE.runtimeAlias,
+      "@codewithkenzo/pi-ai-runtime": CURRENT_RUNTIME_ALIAS,
       effect: EXPECTED_PACKAGE.effect,
     },
     pi: { extensions: [EXPECTED_PACKAGE.main] },
@@ -29,16 +31,38 @@ function validManifest(): {
 }
 
 describe("packed package metadata validator", () => {
-  it("accepts release metadata and complete artifact surface", () => {
+  it("accepts current exact runtime metadata and complete artifact surface", () => {
     expect(validatePackageMetadata(validManifest(), REQUIRED_PACKAGE_FILES)).toEqual([])
   })
 
-  it("rejects a latest runtime alias", () => {
+  it("accepts a future exact stable runtime alias", () => {
     const manifest = validManifest()
-    manifest.dependencies["@codewithkenzo/pi-ai-runtime"] = "npm:@earendil-works/pi-ai@latest"
-    expect(validatePackageMetadata(manifest, REQUIRED_PACKAGE_FILES)).toContain(
-      `runtime alias must be ${EXPECTED_PACKAGE.runtimeAlias}`,
-    )
+    manifest.dependencies["@codewithkenzo/pi-ai-runtime"] = "npm:@earendil-works/pi-ai@1.24.300"
+    expect(validatePackageMetadata(manifest, REQUIRED_PACKAGE_FILES)).toEqual([])
+  })
+
+  it("rejects latest and range runtime aliases", () => {
+    for (const alias of [
+      "npm:@earendil-works/pi-ai@latest",
+      "npm:@earendil-works/pi-ai@^0.80.6",
+      "npm:@earendil-works/pi-ai@>=0.80.6",
+    ]) {
+      const manifest = validManifest()
+      manifest.dependencies["@codewithkenzo/pi-ai-runtime"] = alias
+      expect(validatePackageMetadata(manifest, REQUIRED_PACKAGE_FILES)).toContain(
+        "runtime alias must be an exact npm:@earendil-works/pi-ai@<x.y.z> pin",
+      )
+    }
+  })
+
+  it("rejects an exact alias that mismatches the checked-out release", () => {
+    const manifest = validManifest()
+    manifest.dependencies["@codewithkenzo/pi-ai-runtime"] = "npm:@earendil-works/pi-ai@0.81.0"
+    expect(
+      validatePackageMetadata(manifest, REQUIRED_PACKAGE_FILES, {
+        expectedRuntimeAlias: CURRENT_RUNTIME_ALIAS,
+      }),
+    ).toContain(`runtime alias must be ${CURRENT_RUNTIME_ALIAS}`)
   })
 
   it("rejects legacy peer dependencies", () => {
@@ -58,11 +82,11 @@ describe("packed package metadata validator", () => {
 
   it("rejects missing runtime source and asset files", () => {
     const files = REQUIRED_PACKAGE_FILES.filter(
-      (file) => file !== "src/index.ts" && file !== "assets/pi-clinepass-hero.png",
+      (file) => file !== "src/http.ts" && file !== "assets/pi-clinepass-hero.png",
     )
     expect(validatePackageMetadata(validManifest(), files)).toEqual(
       expect.arrayContaining([
-        "missing package file: src/index.ts",
+        "missing package file: src/http.ts",
         "missing package file: assets/pi-clinepass-hero.png",
       ]),
     )

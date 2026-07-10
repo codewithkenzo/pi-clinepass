@@ -15,6 +15,7 @@ import {
 } from "./config.js"
 import { CLINEPASS_DISPLAY_NAME, CLINEPASS_PROVIDER_ID } from "./constants.js"
 import { AuthError } from "./errors.js"
+import { decodeJson } from "./http.js"
 
 const DEFAULT_EXPIRES_IN_SECONDS = 300
 const DEFAULT_POLL_INTERVAL_SECONDS = 5
@@ -89,14 +90,6 @@ function credentialsFromClineResponse(
   })
 }
 
-function decodeJson<T>(response: Response, label: string) {
-  return Effect.tryPromise({
-    try: () => response.json() as Promise<T>,
-    catch: (cause) =>
-      new AuthError({ message: `${label} returned invalid JSON`, status: response.status, cause }),
-  })
-}
-
 function postForm<T>(url: string, body: URLSearchParams, fetcher: typeof fetch) {
   return Effect.gen(function* () {
     const response = yield* Effect.tryPromise({
@@ -108,10 +101,10 @@ function postForm<T>(url: string, body: URLSearchParams, fetcher: typeof fetch) 
         }),
       catch: () => new AuthError({ message: "OAuth network request failed" }),
     })
-    const payload = yield* decodeJson<T & { error?: string; error_description?: string }>(
-      response,
-      "OAuth request",
-    )
+    const payload = yield* decodeJson<
+      T & { error?: string; error_description?: string },
+      AuthError
+    >(response, "OAuth request", (failure) => new AuthError(failure))
     if (!response.ok) {
       return yield* Effect.fail(
         new AuthError({
@@ -135,7 +128,11 @@ function postJson<T>(url: string, value: unknown, fetcher: typeof fetch) {
         }),
       catch: () => new AuthError({ message: "Cline OAuth request failed" }),
     })
-    const payload = yield* decodeJson<T>(response, "Cline OAuth request")
+    const payload = yield* decodeJson<T, AuthError>(
+      response,
+      "Cline OAuth request",
+      (failure) => new AuthError(failure),
+    )
     if (!response.ok) {
       return yield* Effect.fail(
         new AuthError({
@@ -204,7 +201,11 @@ export function pollWorkOsDeviceToken(input: {
           }),
         catch: () => new AuthError({ message: "WorkOS polling failed" }),
       })
-      const payload = yield* decodeJson<WorkOsTokenResponse>(response, "WorkOS polling")
+      const payload = yield* decodeJson<WorkOsTokenResponse, AuthError>(
+        response,
+        "WorkOS polling",
+        (failure) => new AuthError(failure),
+      )
       if (response.ok) {
         if (!payload.access_token || !payload.refresh_token) {
           return yield* Effect.fail(
@@ -287,6 +288,7 @@ export function createClinePassOAuthProvider(options?: {
     login: (callbacks) => Effect.runPromise(loginClinePass(callbacks, fetcher)),
     refreshToken: (credentials) =>
       Effect.runPromise(refreshClinePassCredentials(credentials, fetcher)),
+    // Pi's OAuth contract is synchronous here; missing credentials must throw synchronously.
     getApiKey(credentials) {
       if (!credentials.access?.trim())
         throw new AuthError({

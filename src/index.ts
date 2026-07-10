@@ -8,6 +8,7 @@ import {
   discoverClinePassModels,
   fallbackClinePassModels,
   toClinePassUpstreamModelId,
+  type OpenRouterModelsCache,
 } from "./discovery.js"
 import { createClinePassOAuthProvider } from "./pi-oauth.js"
 import { handleClinePassError } from "./error-handler.js"
@@ -24,20 +25,27 @@ function withUpstreamModelId(model: Model<Api>): Model<"openai-completions"> {
 }
 
 function fallbackAfterDiscoveryFailure(detail: string) {
-  process.stderr.write(
-    `[pi-clinepass] Failed to fetch live ClinePass models; using fallback list. ${detail}\n`,
-  )
-  return Effect.succeed(fallbackClinePassModels())
+  return Effect.sync(() => {
+    try {
+      process.stderr.write(
+        `[pi-clinepass] Failed to fetch live ClinePass models; using fallback list. ${detail}\n`,
+      )
+    } catch {
+      // Discovery fallback must survive unavailable stderr.
+    }
+    return fallbackClinePassModels()
+  })
 }
 
-export function loadClinePassModels(fetcher: typeof fetch = fetch) {
-  return discoverClinePassModels(fetcher).pipe(
+export function loadClinePassModels(fetcher: typeof fetch = fetch, cache?: OpenRouterModelsCache) {
+  return discoverClinePassModels(fetcher, cache).pipe(
     Effect.timeout(LIVE_MODEL_DISCOVERY_TIMEOUT),
     Effect.catchTags({
       UpstreamError: (error) => fallbackAfterDiscoveryFailure(error.message),
       TimeoutError: () =>
         fallbackAfterDiscoveryFailure(`Discovery timed out after ${LIVE_MODEL_DISCOVERY_TIMEOUT}.`),
     }),
+    Effect.catchDefect(() => fallbackAfterDiscoveryFailure("Unexpected discovery failure.")),
   )
 }
 
