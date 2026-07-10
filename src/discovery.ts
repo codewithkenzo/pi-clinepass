@@ -198,10 +198,6 @@ export function fetchOpenRouterModelSpecs(
   )
 }
 
-function isReasoningModel(upstreamId: string): boolean {
-  return modelSpecsFor(upstreamId).reasoning
-}
-
 function displayName(entry: ClinePassModelEntry): string {
   return entry.name?.trim() || entry.id
 }
@@ -216,6 +212,7 @@ function mergeSpecs(
     contextWindow: discovered?.contextWindow ?? staticSpecs.contextWindow,
     maxTokens: discovered?.maxTokens ?? staticSpecs.maxTokens,
     reasoning: staticSpecs.reasoning,
+    thinkingLevelMap: staticSpecs.thinkingLevelMap,
   }
 }
 
@@ -230,14 +227,8 @@ export function toClinePassModelConfig(
     provider: CLINEPASS_PROVIDER_ID,
     baseUrl: CLINEPASS_BASE_URL,
     api: "openai-completions",
-    reasoning: isReasoningModel(entry.upstreamId),
-    thinkingLevelMap: {
-      minimal: "low",
-      low: "low",
-      medium: "medium",
-      high: "high",
-      xhigh: "high",
-    },
+    reasoning: specs.reasoning,
+    thinkingLevelMap: specs.thinkingLevelMap,
     input: ["text"],
     cost: { ...CLINEPASS_COST },
     contextWindow: specs.contextWindow,

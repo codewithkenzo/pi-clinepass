@@ -3,10 +3,23 @@ export const CLINEPASS_DISPLAY_NAME = "ClinePass"
 export const CLINEPASS_DEFAULT_CONTEXT_WINDOW = 128_000
 export const CLINEPASS_DEFAULT_MAX_TOKENS = 8_192
 
+export type ThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh"
+export type ThinkingLevelMap = Readonly<Record<ThinkingLevel, string | null>>
+
 export type ClinePassModelSpec = {
   readonly contextWindow: number
   readonly maxTokens: number
   readonly reasoning: boolean
+  readonly thinkingLevelMap: ThinkingLevelMap
+}
+
+export const DEFAULT_THINKING_LEVEL_MAP: ThinkingLevelMap = {
+  off: "none",
+  minimal: null,
+  low: "low",
+  medium: "medium",
+  high: "high",
+  xhigh: null,
 }
 
 /**
@@ -18,17 +31,97 @@ export type ClinePassModelSpec = {
  * platform.kimi.ai, minimax.io, openrouter.ai/api/v1/models
  */
 export const CLINEPASS_MODEL_SPECS: Readonly<Record<string, ClinePassModelSpec>> = {
-  "cline-pass/glm-5.2": { contextWindow: 1_048_576, maxTokens: 131_072, reasoning: true },
-  "cline-pass/qwen3.7-max": { contextWindow: 1_000_000, maxTokens: 65_536, reasoning: true },
-  "cline-pass/qwen3.7-plus": { contextWindow: 1_000_000, maxTokens: 65_536, reasoning: true },
-  "cline-pass/deepseek-v4-pro": { contextWindow: 1_048_576, maxTokens: 384_000, reasoning: true },
+  "cline-pass/glm-5.2": {
+    contextWindow: 1_048_576,
+    maxTokens: 131_072,
+    reasoning: true,
+    thinkingLevelMap: {
+      off: "none",
+      minimal: null,
+      low: "low",
+      medium: "medium",
+      high: "high",
+      xhigh: "xhigh",
+    },
+  },
+  "cline-pass/qwen3.7-max": {
+    contextWindow: 1_000_000,
+    maxTokens: 65_536,
+    reasoning: true,
+    thinkingLevelMap: {
+      off: "none",
+      minimal: null,
+      low: "low",
+      medium: "medium",
+      high: "high",
+      xhigh: "xhigh",
+    },
+  },
+  "cline-pass/qwen3.7-plus": {
+    contextWindow: 1_000_000,
+    maxTokens: 65_536,
+    reasoning: true,
+    thinkingLevelMap: {
+      off: "none",
+      minimal: null,
+      low: "low",
+      medium: "medium",
+      high: "high",
+      xhigh: "xhigh",
+    },
+  },
+  "cline-pass/deepseek-v4-pro": {
+    contextWindow: 1_048_576,
+    maxTokens: 384_000,
+    reasoning: true,
+    thinkingLevelMap: {
+      off: "none",
+      minimal: null,
+      low: null,
+      medium: null,
+      high: "high",
+      xhigh: "high",
+    },
+  },
   "cline-pass/deepseek-v4-flash": {
     contextWindow: 1_048_576,
     maxTokens: 65_536,
     reasoning: true,
+    thinkingLevelMap: {
+      off: "none",
+      minimal: null,
+      low: "low",
+      medium: "medium",
+      high: "high",
+      xhigh: "xhigh",
+    },
   },
-  "cline-pass/kimi-k2.7-code": { contextWindow: 262_144, maxTokens: 16_384, reasoning: true },
-  "cline-pass/minimax-m3": { contextWindow: 1_048_576, maxTokens: 512_000, reasoning: true },
+  "cline-pass/kimi-k2.7-code": {
+    contextWindow: 262_144,
+    maxTokens: 16_384,
+    reasoning: true,
+    thinkingLevelMap: {
+      off: null,
+      minimal: null,
+      low: "low",
+      medium: "medium",
+      high: "high",
+      xhigh: null,
+    },
+  },
+  "cline-pass/minimax-m3": {
+    contextWindow: 1_048_576,
+    maxTokens: 512_000,
+    reasoning: true,
+    thinkingLevelMap: {
+      off: "none",
+      minimal: null,
+      low: "low",
+      medium: "medium",
+      high: "high",
+      xhigh: "xhigh",
+    },
+  },
 }
 
 export function modelSpecsFor(id: string): ClinePassModelSpec {
@@ -37,6 +130,7 @@ export function modelSpecsFor(id: string): ClinePassModelSpec {
       contextWindow: CLINEPASS_DEFAULT_CONTEXT_WINDOW,
       maxTokens: CLINEPASS_DEFAULT_MAX_TOKENS,
       reasoning: false,
+      thinkingLevelMap: DEFAULT_THINKING_LEVEL_MAP,
     }
   )
 }
