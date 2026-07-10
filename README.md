@@ -1,5 +1,9 @@
 # pi-clinepass
 
+[![npm version](https://img.shields.io/npm/v/%40codewithkenzo%2Fpi-clinepass)](https://www.npmjs.com/package/@codewithkenzo/pi-clinepass)
+[![license](https://img.shields.io/github/license/codewithkenzo/pi-clinepass)](LICENSE)
+[![CI](https://img.shields.io/github/actions/workflow/status/codewithkenzo/pi-clinepass/ci.yml?branch=main&label=CI)](https://github.com/codewithkenzo/pi-clinepass/actions/workflows/ci.yml)
+
 ![pi-clinepass](assets/pi-clinepass-hero.png)
 
 ClinePass models inside Pi through Pi's native provider system.
@@ -17,7 +21,7 @@ ClinePass models inside Pi through Pi's native provider system.
 - Reasoning: Pi thinking levels map to ClinePass-compatible `reasoning` params
 - Prompt caching: Pi emits Anthropic-style cache-control markers where supported
 
-No API key required. No tokens printed.
+**No Cline CLI needed. No API key needed. OAuth device-code flow works standalone.**
 
 ## Install locally
 
@@ -28,6 +32,12 @@ bun install
 bun run typecheck
 bun test
 pi install .
+```
+
+From npm:
+
+```bash
+pi install npm:@codewithkenzo/pi-clinepass
 ```
 
 From GitHub:
@@ -62,6 +72,17 @@ Exact model string for CLI/non-interactive runs:
 pi --model clinepass/glm-5.2 "Say OK"
 ```
 
+## How it works
+
+1. `/login` starts a WorkOS OAuth device authorization request.
+2. Pi shows a verification URL and one-time device code.
+3. Open URL on any browser, enter code, then approve ClinePass access.
+4. Extension polls WorkOS until authorization completes.
+5. Extension exchanges WorkOS tokens with Cline's auth API and returns OAuth credentials to Pi.
+6. Pi uses refreshed Cline access tokens for model requests.
+
+No Cline desktop or CLI installation participates in this flow. OAuth device-code login works as a standalone Pi extension.
+
 ## Model discovery
 
 The extension fetches:
@@ -70,17 +91,19 @@ The extension fetches:
 https://api.cline.bot/api/v1/ai/cline/recommended-models
 ```
 
-It reads `clinePass[]`, dedupes model ids, then enriches context/output limits from OpenRouter's public model catalog by model slug. A small static table covers known ClinePass models when OpenRouter omits fields.
+It reads `clinePass[]`, dedupes model ids, then enriches context/output limits from OpenRouter's public model catalog by model slug. A static table covers known ClinePass models when OpenRouter omits fields.
 
-Known models include:
+Known models:
 
-- `glm-5.2` — 1,048,576 context, 131K output
-- `qwen3.7-max` — 1M context, 65K output
-- `qwen3.7-plus` — 1M context, 65K output
-- `kimi-k2.7-code` — 262K context, 16K output
-- `deepseek-v4-pro` — 1,048,576 context, 384K output
-- `deepseek-v4-flash` — 1,048,576 context, 65K output
-- `minimax-m3` — 1,048,576 context, 512K output
+| Model | Context window | Max output tokens | Reasoning |
+| --- | ---: | ---: | :---: |
+| `glm-5.2` | 1,048,576 | 131,072 | Yes |
+| `qwen3.7-max` | 1,000,000 | 65,536 | Yes |
+| `qwen3.7-plus` | 1,000,000 | 65,536 | Yes |
+| `kimi-k2.7-code` | 262,144 | 16,384 | Yes |
+| `deepseek-v4-pro` | 1,048,576 | 384,000 | Yes |
+| `deepseek-v4-flash` | 1,048,576 | 65,536 | Yes |
+| `minimax-m3` | 1,048,576 | 512,000 | Yes |
 
 ## OAuth behavior
 
@@ -131,6 +154,8 @@ Why `thinkingFormat: "together"`:
 ```bash
 bun install
 bun run typecheck
+bun run lint
+bun run format:check
 bun test
 ```
 
@@ -155,4 +180,3 @@ Pi loads this package through:
 ```
 
 Runtime entrypoint: `src/index.ts`.
-
