@@ -115,7 +115,7 @@ Each model is registered with:
 
 ```ts
 {
-  api: "openai-completions",
+  api: "clinepass:openai-completions",
   input: ["text"],
   contextWindow: 1_000_000, // per-model from vendor docs
   maxTokens: 131_072,       // per-model from vendor docs

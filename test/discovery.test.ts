@@ -12,6 +12,7 @@ import {
 } from "../src/discovery.ts"
 import {
   CLINEPASS_MODEL_SPECS,
+  CLINEPASS_API_ID,
   CLINEPASS_PROVIDER_ID,
   DEFAULT_THINKING_LEVEL_MAP,
 } from "../src/constants.ts"
@@ -133,7 +134,7 @@ describe("ClinePass discovery edge cases", () => {
     ])
     for (const model of models) {
       expect(model.provider).toBe(CLINEPASS_PROVIDER_ID)
-      expect(model.api).toBe("openai-completions")
+      expect(model.api).toBe(CLINEPASS_API_ID)
       expect(model.reasoning).toBe(true)
       expect(model.thinkingLevelMap).toBeDefined()
       expect(model.input).toEqual(["text"])

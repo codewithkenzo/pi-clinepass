@@ -11,7 +11,7 @@ import {
   toClinePassUpstreamModelId,
 } from "../src/discovery.ts"
 import { CLINEPASS_BASE_URL } from "../src/config.ts"
-import { CLINEPASS_PROVIDER_ID } from "../src/constants.ts"
+import { CLINEPASS_API_ID, CLINEPASS_PROVIDER_ID } from "../src/constants.ts"
 import type { ExtensionContext, MessageEndEvent } from "../src/pi-types.ts"
 
 const originalFetch = globalThis.fetch
@@ -38,13 +38,13 @@ describe("ClinePass model discovery/config", () => {
     ).toEqual([{ id: "glm-5.2", upstreamId: "cline-pass/glm-5.2" }])
   })
 
-  it("builds OpenAI completions model config with Cline gateway compat", () => {
+  it("issue #2: builds model config with provider-isolated API", () => {
     const model = toClinePassModelConfig({ id: "glm-5.2", upstreamId: "cline-pass/glm-5.2" })
     expect(model).toMatchObject({
       id: "glm-5.2",
       provider: CLINEPASS_PROVIDER_ID,
       baseUrl: CLINEPASS_BASE_URL,
-      api: "openai-completions",
+      api: CLINEPASS_API_ID,
       reasoning: true,
       input: ["text"],
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
@@ -201,7 +201,7 @@ describe("Pi provider extension", () => {
     expect(notify).toHaveBeenCalledWith("ClinePass auth expired. Run /login to refresh.")
   })
 
-  it("registers ClinePass provider with models and OAuth object", async () => {
+  it("issue #2: registers provider-specific API without replacing builtin handler", async () => {
     globalThis.fetch = mock(async () =>
       jsonResponse({
         clinePass: [
@@ -217,16 +217,24 @@ describe("Pi provider extension", () => {
     expect(registerProvider).toHaveBeenCalledTimes(1)
     const [providerId, config] = registerProvider.mock.calls[0] as unknown as [
       string,
-      { baseUrl: string; models: Array<Record<string, unknown>>; oauth: Record<string, unknown> },
+      {
+        api: string
+        baseUrl: string
+        models: Array<Record<string, unknown>>
+        oauth: Record<string, unknown>
+      },
     ]
     expect(providerId).toBe(CLINEPASS_PROVIDER_ID)
+    expect(config.api).toBe(CLINEPASS_API_ID)
+    expect(config.api).not.toBe("openai-completions")
     expect(config.baseUrl).toBe(CLINEPASS_BASE_URL)
     expect(config.models.map((model) => model.id)).toEqual(["glm-5.2", "qwen3.7-max"])
     expect(config.models[0]).toMatchObject({
-      api: "openai-completions",
+      api: CLINEPASS_API_ID,
       headers: { "X-CORE-VERSION": "4.0.0" },
       compat: { thinkingFormat: "together", cacheControlFormat: "anthropic" },
     })
+    expect(config.models.every((model) => model.api === CLINEPASS_API_ID)).toBe(true)
     expect(typeof config.oauth.login).toBe("function")
     expect(typeof config.oauth.refreshToken).toBe("function")
     expect(typeof config.oauth.getApiKey).toBe("function")

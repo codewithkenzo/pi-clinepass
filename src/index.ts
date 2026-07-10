@@ -1,7 +1,7 @@
 import { openAICompletionsApi } from "@earendil-works/pi-ai/compat"
 import { Effect } from "effect"
 import { CLINEPASS_BASE_URL } from "./config.js"
-import { CLINEPASS_PROVIDER_ID } from "./constants.js"
+import { CLINEPASS_API_ID, CLINEPASS_PROVIDER_ID } from "./constants.js"
 import {
   discoverClinePassModels,
   fallbackClinePassModels,
@@ -29,7 +29,7 @@ export default async function (pi: ExtensionAPI): Promise<void> {
   )
 
   pi.registerProvider(CLINEPASS_PROVIDER_ID, {
-    api: "openai-completions",
+    api: CLINEPASS_API_ID,
     baseUrl: CLINEPASS_BASE_URL,
     models,
     streamSimple(model: Model<Api>, context: Context, options?: SimpleStreamOptions) {

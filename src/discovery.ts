@@ -2,6 +2,7 @@ import { Clock, Effect } from "effect"
 import { CLINE_MODELS_URL, CLINEPASS_BASE_URL, OPENROUTER_MODELS_URL } from "./config.js"
 import {
   CLINE_CLIENT_HEADERS,
+  CLINEPASS_API_ID,
   CLINEPASS_COST,
   CLINEPASS_PROVIDER_ID,
   type ClinePassModelSpec,
@@ -219,14 +220,14 @@ function mergeSpecs(
 export function toClinePassModelConfig(
   entry: ClinePassModelEntry,
   discoveredSpecs: ModelSpecsById = {},
-): Model<"openai-completions"> {
+): Model<typeof CLINEPASS_API_ID> {
   const specs = mergeSpecs(entry, discoveredSpecs)
   return {
     id: entry.id,
     name: displayName(entry),
     provider: CLINEPASS_PROVIDER_ID,
     baseUrl: CLINEPASS_BASE_URL,
-    api: "openai-completions",
+    api: CLINEPASS_API_ID,
     reasoning: specs.reasoning,
     thinkingLevelMap: specs.thinkingLevelMap,
     input: ["text"],
