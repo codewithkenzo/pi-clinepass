@@ -198,9 +198,8 @@ export function fetchOpenRouterModelSpecs(
   )
 }
 
-function isReasoningModel(id: string): boolean {
-  const normalized = id.toLowerCase()
-  return /glm|qwen|minimax|mimo|kimi|deepseek/.test(normalized)
+function isReasoningModel(upstreamId: string): boolean {
+  return modelSpecsFor(upstreamId).reasoning
 }
 
 function displayName(entry: ClinePassModelEntry): string {
@@ -216,6 +215,7 @@ function mergeSpecs(
   return {
     contextWindow: discovered?.contextWindow ?? staticSpecs.contextWindow,
     maxTokens: discovered?.maxTokens ?? staticSpecs.maxTokens,
+    reasoning: staticSpecs.reasoning,
   }
 }
 
@@ -230,7 +230,7 @@ export function toClinePassModelConfig(
     provider: CLINEPASS_PROVIDER_ID,
     baseUrl: CLINEPASS_BASE_URL,
     api: "openai-completions",
-    reasoning: isReasoningModel(entry.id),
+    reasoning: isReasoningModel(entry.upstreamId),
     thinkingLevelMap: {
       minimal: "low",
       low: "low",
