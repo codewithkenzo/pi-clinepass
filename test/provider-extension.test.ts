@@ -33,7 +33,7 @@ import { CLINEPASS_API_ID, CLINEPASS_PROVIDER_ID } from "../src/constants.ts"
 type MessageEndEvent = Extract<ExtensionEvent, { type: "message_end" }>
 
 const originalFetch = globalThis.fetch
-const originalStderrWrite = process.stderr.write
+const originalStderrWrite = process.stderr.write.bind(process.stderr)
 
 afterEach(() => {
   globalThis.fetch = originalFetch
@@ -209,7 +209,7 @@ describe("Pi provider extension", () => {
     expect(source).not.toContain("@earendil-works/pi-ai")
     expect(source).not.toContain(["@codewithkenzo/pi-ai-runtime", "compat"].join("/"))
     expect(packageJson).toContain(
-      '"@codewithkenzo/pi-ai-runtime": "npm:@earendil-works/pi-ai@latest"',
+      '"@codewithkenzo/pi-ai-runtime": "npm:@earendil-works/pi-ai@0.80.6"',
     )
   })
 

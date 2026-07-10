@@ -1,43 +1,45 @@
 {
   "name": "@codewithkenzo/pi-clinepass",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Native Pi provider extension for ClinePass OAuth models.",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/codewithkenzo/pi-clinepass.git"
-  },
+  "keywords": [
+    "clinepass",
+    "pi",
+    "pi-extension",
+    "pi-package",
+    "provider"
+  ],
   "homepage": "https://github.com/codewithkenzo/pi-clinepass#readme",
   "bugs": {
     "url": "https://github.com/codewithkenzo/pi-clinepass/issues"
   },
-  "keywords": [
-    "pi-package",
-    "pi-extension",
-    "pi",
-    "clinepass",
-    "provider"
-  ],
   "license": "MIT",
-  "type": "module",
-  "main": "./src/index.ts",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/codewithkenzo/pi-clinepass.git"
+  },
   "files": [
     "src",
     "assets",
     "README.md",
     "LICENSE"
   ],
+  "type": "module",
+  "main": "./src/index.ts",
   "publishConfig": {
     "access": "public"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "bun test",
-    "lint": "oxlint --config .oxlintrc.json src/ test/",
-    "format": "oxfmt --write src/ test/",
-    "format:check": "oxfmt --check src/ test/"
+    "lint": "oxlint --config .oxlintrc.json --deny-warnings --report-unused-disable-directives src/ test/ scripts/",
+    "lint:type-aware": "oxlint --config .oxlintrc.json --deny-warnings --report-unused-disable-directives --type-aware --type-check src/ test/ scripts/",
+    "format": "oxfmt --write src/ test/ scripts/ package.json tsconfig.json .oxlintrc.json .oxfmtrc.json",
+    "format:check": "oxfmt --check src/ test/ scripts/ package.json tsconfig.json .oxlintrc.json .oxfmtrc.json",
+    "quality:sentinel": "bun scripts/quality-sentinel.ts"
   },
   "dependencies": {
-    "@codewithkenzo/pi-ai-runtime": "npm:@earendil-works/pi-ai@latest",
+    "@codewithkenzo/pi-ai-runtime": "npm:@earendil-works/pi-ai@0.80.6",
     "effect": "^4.0.0-beta.93"
   },
   "devDependencies": {
@@ -45,6 +47,7 @@
     "@types/bun": "latest",
     "oxfmt": "^0.58.0",
     "oxlint": "^1.73.0",
+    "oxlint-tsgolint": "0.24.0",
     "typescript": "^7.0.2"
   },
   "pi": {

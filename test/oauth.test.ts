@@ -38,6 +38,14 @@ function failureMessage<E>(exit: Exit.Exit<unknown, E>): string {
   return Exit.isFailure(exit) ? Cause.pretty(exit.cause) : ""
 }
 
+async function expectFailureMatch<A, E>(
+  effect: Effect.Effect<A, E>,
+  expected: object,
+): Promise<void> {
+  const error = await Effect.runPromise(Effect.flip(effect))
+  expect(error).toMatchObject(expected)
+}
+
 describe("ClinePass Pi OAuth", () => {
   it("prefixes API key for Pi provider auth", () => {
     const oauth = createClinePassOAuthProvider()
@@ -59,7 +67,7 @@ describe("ClinePass Pi OAuth", () => {
     const denied = mock(async () =>
       jsonResponse({ error: "access_denied", error_description: "Device flow disabled" }, 403),
     ) as unknown as typeof fetch
-    await expect(Effect.runPromise(startClineDeviceAuth(denied))).rejects.toMatchObject({
+    await expectFailureMatch(startClineDeviceAuth(denied), {
       _tag: "AuthError",
       message: "OAuth request failed with HTTP 403",
       status: 403,
@@ -68,7 +76,7 @@ describe("ClinePass Pi OAuth", () => {
     const malformed = mock(async () =>
       jsonResponse({ device_code: "device" }),
     ) as unknown as typeof fetch
-    await expect(Effect.runPromise(startClineDeviceAuth(malformed))).rejects.toMatchObject({
+    await expectFailureMatch(startClineDeviceAuth(malformed), {
       _tag: "AuthError",
       message: "WorkOS device auth response missing required fields",
     })
@@ -291,51 +299,48 @@ describe("ClinePass Pi OAuth", () => {
       jsonResponse({ error: "unexpected" }, 500),
     ) as unknown as typeof fetch
 
-    await expect(
-      Effect.runPromise(
-        pollWorkOsDeviceToken({
-          deviceCode: "device",
-          expiresInSeconds: 30,
-          intervalSeconds: 1,
-          callbacks: loginCallbacks(controller.signal),
-          fetcher,
-        }),
-      ),
-    ).rejects.toMatchObject({ _tag: "AuthError", message: "ClinePass login cancelled" })
+    await expectFailureMatch(
+      pollWorkOsDeviceToken({
+        deviceCode: "device",
+        expiresInSeconds: 30,
+        intervalSeconds: 1,
+        callbacks: loginCallbacks(controller.signal),
+        fetcher,
+      }),
+      { _tag: "AuthError", message: "ClinePass login cancelled" },
+    )
     expect(fetcher).not.toHaveBeenCalled()
   })
 
   it("fails WorkOS token registration on HTTP and token payload errors", async () => {
     const httpFailure = mock(async () => jsonResponse({}, 403)) as unknown as typeof fetch
-    await expect(
-      Effect.runPromise(
-        registerWorkOsTokens(
-          { access_token: "workos-access", refresh_token: "workos-refresh" },
-          httpFailure,
-        ),
+    await expectFailureMatch(
+      registerWorkOsTokens(
+        { access_token: "workos-access", refresh_token: "workos-refresh" },
+        httpFailure,
       ),
-    ).rejects.toMatchObject({
-      _tag: "AuthError",
-      message: "Cline OAuth request failed with HTTP 403",
-      status: 403,
-    })
+      {
+        _tag: "AuthError",
+        message: "Cline OAuth request failed with HTTP 403",
+        status: 403,
+      },
+    )
 
     const missingTokens = mock(async () =>
       jsonResponse({ success: true, data: { accessToken: "access" } }),
     ) as unknown as typeof fetch
-    await expect(
-      Effect.runPromise(
-        registerWorkOsTokens(
-          { access_token: "workos-access", refresh_token: "workos-refresh" },
-          missingTokens,
-        ),
+    await expectFailureMatch(
+      registerWorkOsTokens(
+        { access_token: "workos-access", refresh_token: "workos-refresh" },
+        missingTokens,
       ),
-    ).rejects.toMatchObject({ message: "Cline OAuth response missing tokens" })
+      { message: "Cline OAuth response missing tokens" },
+    )
   })
 
   it("refreshes Cline OAuth credentials", async () => {
     const fetcher = mock(async (_url: string | URL | Request, init?: RequestInit) => {
-      expect(String(init?.body)).toBe(
+      expect(init?.body).toBe(
         JSON.stringify({ refreshToken: "old-refresh", grantType: "refresh_token" }),
       )
       return jsonResponse({
@@ -363,21 +368,20 @@ describe("ClinePass Pi OAuth", () => {
 
   it("fails credential refresh", async () => {
     const fetcher = mock(async () => jsonResponse({}, 401)) as unknown as typeof fetch
-    await expect(
-      Effect.runPromise(
-        refreshClinePassCredentials({ access: "old", refresh: "old-refresh", expires: 1 }, fetcher),
-      ),
-    ).rejects.toMatchObject({
-      _tag: "AuthError",
-      message: "Cline OAuth request failed with HTTP 401",
-      status: 401,
-    })
+    await expectFailureMatch(
+      refreshClinePassCredentials({ access: "old", refresh: "old-refresh", expires: 1 }, fetcher),
+      {
+        _tag: "AuthError",
+        message: "Cline OAuth request failed with HTTP 401",
+        status: 401,
+      },
+    )
   })
 
   it("runs device login through WorkOS then Cline register without exposing tokens", async () => {
     const calls: string[] = []
     const fetcher = mock(async (url: string | URL | Request) => {
-      const text = url.toString()
+      const text = typeof url === "string" ? url : url instanceof URL ? url.href : url.url
       calls.push(text)
       if (text.includes("authorize/device")) {
         return jsonResponse({
@@ -446,7 +450,7 @@ describe("ClinePass Pi OAuth", () => {
       return jsonResponse({}, 500)
     }) as unknown as typeof fetch
 
-    await expect(Effect.runPromise(loginClinePass(callbacks, fetcher))).rejects.toMatchObject({
+    await expectFailureMatch(loginClinePass(callbacks, fetcher), {
       status: 500,
       message: "Cline OAuth request failed with HTTP 500",
     })
