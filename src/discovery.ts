@@ -126,8 +126,18 @@ export function fetchClinePassModelEntries(fetcher: typeof fetch = fetch) {
         }),
       )
     }
+    if (!isRecord(payload) || !Array.isArray(payload.clinePass)) {
+      return yield* Effect.fail(
+        new UpstreamError({ message: "ClinePass model list returned malformed payload" }),
+      )
+    }
     const models = parseClinePassModelEntries(payload)
-    return models.length > 0 ? models : [...FALLBACK_MODELS]
+    if (models.length === 0) {
+      return yield* Effect.fail(
+        new UpstreamError({ message: "ClinePass model list returned no usable models" }),
+      )
+    }
+    return models
   })
 }
 

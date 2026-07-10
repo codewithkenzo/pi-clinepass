@@ -1,4 +1,10 @@
-import type { AssistantMessage } from "@codewithkenzo/pi-ai-runtime"
+import {
+  createAssistantMessageEventStream,
+  type Api,
+  type AssistantMessage,
+  type Model,
+  type ProviderStreams,
+} from "@codewithkenzo/pi-ai-runtime"
 import type {
   ExtensionAPI,
   ExtensionContext,
@@ -7,7 +13,11 @@ import type {
 import { afterEach, describe, expect, it, mock } from "bun:test"
 import { Effect, Fiber } from "effect"
 import { TestClock } from "effect/testing"
-import extension, { LIVE_MODEL_DISCOVERY_TIMEOUT, loadClinePassModels } from "../src/index.ts"
+import extension, {
+  LIVE_MODEL_DISCOVERY_TIMEOUT,
+  loadClinePassModels,
+  registerClinePassExtension,
+} from "../src/index.ts"
 import {
   buildClinePassModels,
   clearOpenRouterModelsCache,
@@ -231,28 +241,54 @@ describe("Pi provider extension", () => {
     expect(String(stderrWrite.mock.calls[0]?.[0])).toContain("Discovery timed out after 5 seconds")
   })
 
-  it("falls back to static models when live discovery fails", async () => {
-    globalThis.fetch = mock(async () =>
-      jsonResponse({}, { status: 503 }),
-    ) as unknown as typeof fetch
-    const registerProvider = mock(() => undefined)
+  const discoveryFailures: ReadonlyArray<{
+    name: string
+    fetcher: () => Promise<Response>
+    expected: string
+  }> = [
+    {
+      name: "rejected fetch",
+      fetcher: () => Promise.reject(new Error("DISCOVERY_SECRET")),
+      expected: "Failed to fetch ClinePass model list",
+    },
+    {
+      name: "HTTP error",
+      fetcher: async () => jsonResponse({ error: "DISCOVERY_SECRET" }, { status: 503 }),
+      expected: "HTTP 503",
+    },
+    {
+      name: "malformed JSON",
+      fetcher: async () => new Response("{DISCOVERY_SECRET", { status: 200 }),
+      expected: "invalid JSON",
+    },
+    {
+      name: "malformed payload",
+      fetcher: async () => jsonResponse({ clinePass: "DISCOVERY_SECRET" }),
+      expected: "malformed payload",
+    },
+    {
+      name: "empty payload",
+      fetcher: async () => jsonResponse({ clinePass: [] }),
+      expected: "no usable models",
+    },
+  ]
 
-    await extension(extensionApi(registerProvider))
+  for (const scenario of discoveryFailures) {
+    it(`falls back once for ${scenario.name} without leaking response data`, async () => {
+      const stderrWrite = mock((_chunk: string | Uint8Array) => true)
+      process.stderr.write = stderrWrite as unknown as typeof process.stderr.write
+      const fetcher = mock(scenario.fetcher) as unknown as typeof fetch
 
-    const config = (
-      registerProvider.mock.calls[0] as unknown as [string, { models: Array<{ id: string }> }]
-    )[1]
-    expect(config.models.map((model) => model.id)).toEqual([
-      "glm-5.2",
-      "qwen3.7-max",
-      "qwen3.7-plus",
-      "kimi-k2.7-code",
-      "deepseek-v4-pro",
-      "deepseek-v4-flash",
-      "minimax-m3",
-    ])
-    expect(globalThis.fetch).toHaveBeenCalledTimes(1)
-  })
+      const models = await Effect.runPromise(loadClinePassModels(fetcher))
+
+      expect(models).toEqual(expect.arrayContaining([expect.objectContaining({ id: "glm-5.2" })]))
+      expect(fetcher).toHaveBeenCalledTimes(1)
+      expect(stderrWrite).toHaveBeenCalledTimes(1)
+      const notice = String(stderrWrite.mock.calls[0]?.[0])
+      expect(notice).toContain(scenario.expected)
+      expect(notice).not.toContain("DISCOVERY_SECRET")
+    })
+  }
 
   it("wires message_end errors through the extension handler", async () => {
     globalThis.fetch = mock(async () =>
@@ -280,8 +316,8 @@ describe("Pi provider extension", () => {
     expect(notify).toHaveBeenCalledWith("ClinePass auth expired. Run /login to refresh.")
   })
 
-  it("issue #2: registers provider-specific API without replacing builtin handler", async () => {
-    globalThis.fetch = mock(async () =>
+  it("issue #2: installs private API in registry without replacing builtin handler", async () => {
+    const fetcher = mock(async () =>
       jsonResponse({
         clinePass: [
           { id: "cline-pass/glm-5.2", name: "GLM 5.2" },
@@ -289,33 +325,38 @@ describe("Pi provider extension", () => {
         ],
       }),
     ) as unknown as typeof fetch
-    const registerProvider = mock(() => undefined)
+    let capturedModel: Model<Api> | undefined
+    const controlHandler: ProviderStreams["streamSimple"] = (model) => {
+      capturedModel = model
+      return createAssistantMessageEventStream()
+    }
+    const privateHandler: ProviderStreams["streamSimple"] = (model) => {
+      capturedModel = model
+      return createAssistantMessageEventStream()
+    }
+    const registry = new Map<string, ProviderStreams["streamSimple"]>([
+      ["openai-completions", controlHandler],
+    ])
+    const registerProvider: ExtensionAPI["registerProvider"] = (_providerId, config) => {
+      if (config.api && config.streamSimple) registry.set(config.api, config.streamSimple)
+    }
 
-    await extension(extensionApi(registerProvider))
-
-    expect(registerProvider).toHaveBeenCalledTimes(1)
-    const [providerId, config] = registerProvider.mock.calls[0] as unknown as [
-      string,
-      {
-        api: string
-        baseUrl: string
-        models: Array<Record<string, unknown>>
-        oauth: Record<string, unknown>
-      },
-    ]
-    expect(providerId).toBe(CLINEPASS_PROVIDER_ID)
-    expect(config.api).toBe(CLINEPASS_API_ID)
-    expect(config.api).not.toBe("openai-completions")
-    expect(config.baseUrl).toBe(CLINEPASS_BASE_URL)
-    expect(config.models.map((model) => model.id)).toEqual(["glm-5.2", "qwen3.7-max"])
-    expect(config.models[0]).toMatchObject({
-      api: CLINEPASS_API_ID,
-      headers: { "X-CORE-VERSION": "4.0.0" },
-      compat: { thinkingFormat: "together", cacheControlFormat: "anthropic" },
+    await registerClinePassExtension(extensionApi(registerProvider), {
+      fetcher,
+      streamSimple: privateHandler,
     })
-    expect(config.models.every((model) => model.api === CLINEPASS_API_ID)).toBe(true)
-    expect(typeof config.oauth.login).toBe("function")
-    expect(typeof config.oauth.refreshToken).toBe("function")
-    expect(typeof config.oauth.getApiKey).toBe("function")
+
+    expect(registry.get("openai-completions")).toBe(controlHandler)
+    const installed = registry.get(CLINEPASS_API_ID)
+    expect(installed).toBeDefined()
+    const model = toClinePassModelConfig({
+      id: "glm-5.2",
+      upstreamId: "cline-pass/glm-5.2",
+    })
+    installed?.(model, { messages: [] })
+    expect(capturedModel).toMatchObject({
+      api: "openai-completions",
+      id: "cline-pass/glm-5.2",
+    })
   })
 })

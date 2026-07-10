@@ -106,7 +106,7 @@ function postForm<T>(url: string, body: URLSearchParams, fetcher: typeof fetch) 
           headers: { "content-type": "application/x-www-form-urlencoded" },
           body,
         }),
-      catch: (cause) => new AuthError({ message: "OAuth network request failed", cause }),
+      catch: () => new AuthError({ message: "OAuth network request failed" }),
     })
     const payload = yield* decodeJson<T & { error?: string; error_description?: string }>(
       response,
@@ -115,10 +115,7 @@ function postForm<T>(url: string, body: URLSearchParams, fetcher: typeof fetch) 
     if (!response.ok) {
       return yield* Effect.fail(
         new AuthError({
-          message:
-            payload.error_description ||
-            payload.error ||
-            `OAuth request failed with HTTP ${response.status}`,
+          message: `OAuth request failed with HTTP ${response.status}`,
           status: response.status,
         }),
       )
@@ -136,7 +133,7 @@ function postJson<T>(url: string, value: unknown, fetcher: typeof fetch) {
           headers: { "content-type": "application/json" },
           body: JSON.stringify(value),
         }),
-      catch: (cause) => new AuthError({ message: "Cline OAuth request failed", cause }),
+      catch: () => new AuthError({ message: "Cline OAuth request failed" }),
     })
     const payload = yield* decodeJson<T>(response, "Cline OAuth request")
     if (!response.ok) {
@@ -205,7 +202,7 @@ export function pollWorkOsDeviceToken(input: {
               client_id: WORKOS_CLIENT_ID,
             }),
           }),
-        catch: (cause) => new AuthError({ message: "WorkOS polling failed", cause }),
+        catch: () => new AuthError({ message: "WorkOS polling failed" }),
       })
       const payload = yield* decodeJson<WorkOsTokenResponse>(response, "WorkOS polling")
       if (response.ok) {
@@ -230,10 +227,7 @@ export function pollWorkOsDeviceToken(input: {
       }
       return yield* Effect.fail(
         new AuthError({
-          message:
-            payload.error_description ||
-            payload.error ||
-            `WorkOS polling failed with HTTP ${response.status}`,
+          message: `WorkOS polling failed with HTTP ${response.status}`,
           status: response.status,
         }),
       )

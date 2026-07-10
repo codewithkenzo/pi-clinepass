@@ -61,7 +61,7 @@ describe("ClinePass Pi OAuth", () => {
     ) as unknown as typeof fetch
     await expect(Effect.runPromise(startClineDeviceAuth(denied))).rejects.toMatchObject({
       _tag: "AuthError",
-      message: "Device flow disabled",
+      message: "OAuth request failed with HTTP 403",
       status: 403,
     })
 
@@ -72,6 +72,128 @@ describe("ClinePass Pi OAuth", () => {
       _tag: "AuthError",
       message: "WorkOS device auth response missing required fields",
     })
+  })
+
+  for (const status of [401, 403, 429, 500, 503]) {
+    it(`sanitizes OAuth HTTP ${status} failures across every endpoint`, async () => {
+      const sentinel = `TOKEN_SENTINEL_${status}`
+      const response = async () =>
+        jsonResponse({ error: sentinel, error_description: `${sentinel}_description` }, status)
+      const device = Effect.exit(startClineDeviceAuth(mock(response) as unknown as typeof fetch))
+      const poll = Effect.exit(
+        pollWorkOsDeviceToken({
+          deviceCode: sentinel,
+          expiresInSeconds: 30,
+          intervalSeconds: 1,
+          fetcher: mock(response) as unknown as typeof fetch,
+        }),
+      )
+      const register = Effect.exit(
+        registerWorkOsTokens(
+          { access_token: sentinel, refresh_token: `${sentinel}_refresh` },
+          mock(response) as unknown as typeof fetch,
+        ),
+      )
+      const refresh = Effect.exit(
+        refreshClinePassCredentials(
+          { access: sentinel, refresh: `${sentinel}_refresh`, expires: 1 },
+          mock(response) as unknown as typeof fetch,
+        ),
+      )
+
+      const exits = await Promise.all([
+        Effect.runPromise(device),
+        Effect.runPromise(poll),
+        Effect.runPromise(register),
+        Effect.runPromise(refresh),
+      ])
+      for (const exit of exits) {
+        const text = failureMessage(exit)
+        expect(text).toContain(String(status))
+        expect(text).not.toContain(sentinel)
+      }
+    })
+  }
+
+  it("sanitizes malformed JSON failures across every OAuth endpoint", async () => {
+    const sentinel = "MALFORMED_TOKEN_SENTINEL"
+    const malformed = mock(
+      async () => new Response(`{${sentinel}`, { status: 200 }),
+    ) as unknown as typeof fetch
+    const exits = await Promise.all([
+      Effect.runPromise(Effect.exit(startClineDeviceAuth(malformed))),
+      Effect.runPromise(
+        Effect.exit(
+          pollWorkOsDeviceToken({
+            deviceCode: sentinel,
+            expiresInSeconds: 30,
+            intervalSeconds: 1,
+            fetcher: malformed,
+          }),
+        ),
+      ),
+      Effect.runPromise(
+        Effect.exit(
+          registerWorkOsTokens(
+            { access_token: sentinel, refresh_token: `${sentinel}_refresh` },
+            malformed,
+          ),
+        ),
+      ),
+      Effect.runPromise(
+        Effect.exit(
+          refreshClinePassCredentials(
+            { access: sentinel, refresh: `${sentinel}_refresh`, expires: 1 },
+            malformed,
+          ),
+        ),
+      ),
+    ])
+
+    for (const exit of exits) {
+      const text = failureMessage(exit)
+      expect(text).toContain("invalid JSON")
+      expect(text).not.toContain(sentinel)
+    }
+  })
+
+  it("sanitizes rejected fetch causes across every OAuth endpoint", async () => {
+    const sentinel = "REJECTED_TOKEN_SENTINEL"
+    const rejected = mock(() => Promise.reject(new Error(sentinel))) as unknown as typeof fetch
+    const exits = await Promise.all([
+      Effect.runPromise(Effect.exit(startClineDeviceAuth(rejected))),
+      Effect.runPromise(
+        Effect.exit(
+          pollWorkOsDeviceToken({
+            deviceCode: sentinel,
+            expiresInSeconds: 30,
+            intervalSeconds: 1,
+            fetcher: rejected,
+          }),
+        ),
+      ),
+      Effect.runPromise(
+        Effect.exit(
+          registerWorkOsTokens(
+            { access_token: sentinel, refresh_token: `${sentinel}_refresh` },
+            rejected,
+          ),
+        ),
+      ),
+      Effect.runPromise(
+        Effect.exit(
+          refreshClinePassCredentials(
+            { access: sentinel, refresh: `${sentinel}_refresh`, expires: 1 },
+            rejected,
+          ),
+        ),
+      ),
+    ])
+
+    for (const exit of exits) {
+      const text = failureMessage(exit)
+      expect(text).not.toContain(sentinel)
+    }
   })
 
   it("polls authorization_pending then succeeds using TestClock", async () => {

@@ -14,6 +14,11 @@ import { handleClinePassError } from "./error-handler.js"
 
 export const LIVE_MODEL_DISCOVERY_TIMEOUT = "5 seconds"
 
+type ClinePassExtensionOptions = {
+  readonly fetcher?: typeof fetch
+  readonly streamSimple?: typeof streamOpenAICompletionsSimple
+}
+
 function withUpstreamModelId(model: Model<Api>): Model<"openai-completions"> {
   return { ...model, api: "openai-completions", id: toClinePassUpstreamModelId(model.id) }
 }
@@ -36,18 +41,24 @@ export function loadClinePassModels(fetcher: typeof fetch = fetch) {
   )
 }
 
-export default async function (pi: ExtensionAPI): Promise<void> {
-  const models = await Effect.runPromise(loadClinePassModels())
+export async function registerClinePassExtension(
+  pi: ExtensionAPI,
+  options: ClinePassExtensionOptions = {},
+): Promise<void> {
+  const streamSimple = options.streamSimple ?? streamOpenAICompletionsSimple
+  const models = await Effect.runPromise(loadClinePassModels(options.fetcher))
 
   pi.registerProvider(CLINEPASS_PROVIDER_ID, {
     api: CLINEPASS_API_ID,
     baseUrl: CLINEPASS_BASE_URL,
     models,
     streamSimple(model: Model<Api>, context: Context, options?: SimpleStreamOptions) {
-      return streamOpenAICompletionsSimple(withUpstreamModelId(model), context, options)
+      return streamSimple(withUpstreamModelId(model), context, options)
     },
     oauth: createClinePassOAuthProvider(),
   })
 
   pi.on("message_end", (event, ctx) => handleClinePassError(event, ctx))
 }
+
+export default registerClinePassExtension
