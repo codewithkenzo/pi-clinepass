@@ -4,11 +4,32 @@ export type ThinkingLevel = "minimal" | "low" | "medium" | "high" | "xhigh"
 export type ModelThinkingLevel = "off" | ThinkingLevel
 
 export type TextContent = { readonly type: "text"; readonly text: string }
-export type ImageContent = { readonly type: "image"; readonly data: string; readonly mimeType: string }
-export type ThinkingContent = { readonly type: "thinking"; readonly thinking: string; readonly thinkingSignature?: string }
-export type ToolCall = { readonly type: "toolCall"; readonly id: string; readonly name: string; readonly arguments: Record<string, unknown> }
-export type Message = { readonly role: string; readonly content?: unknown; readonly [key: string]: unknown }
-export type Tool = { readonly name: string; readonly description: string; readonly parameters: unknown }
+export type ImageContent = {
+  readonly type: "image"
+  readonly data: string
+  readonly mimeType: string
+}
+export type ThinkingContent = {
+  readonly type: "thinking"
+  readonly thinking: string
+  readonly thinkingSignature?: string
+}
+export type ToolCall = {
+  readonly type: "toolCall"
+  readonly id: string
+  readonly name: string
+  readonly arguments: Record<string, unknown>
+}
+export type Message = {
+  readonly role: string
+  readonly content?: unknown
+  readonly [key: string]: unknown
+}
+export type Tool = {
+  readonly name: string
+  readonly description: string
+  readonly parameters: unknown
+}
 
 export type Context = {
   readonly systemPrompt?: string
@@ -28,14 +49,23 @@ export type Model<TApi extends Api = Api> = {
   readonly reasoning: boolean
   readonly thinkingLevelMap?: Partial<Record<ModelThinkingLevel, string | null>>
   readonly input: ("text" | "image")[]
-  readonly cost: { readonly input: number; readonly output: number; readonly cacheRead: number; readonly cacheWrite: number }
+  readonly cost: {
+    readonly input: number
+    readonly output: number
+    readonly cacheRead: number
+    readonly cacheWrite: number
+  }
   readonly contextWindow: number
   readonly maxTokens: number
   readonly headers?: Record<string, string>
   readonly compat?: Record<string, unknown>
 }
 
-export type StreamSimpleFunction = (model: Model<Api>, context: Context, options?: SimpleStreamOptions) => AssistantMessageEventStream
+export type StreamSimpleFunction = (
+  model: Model<Api>,
+  context: Context,
+  options?: SimpleStreamOptions,
+) => AssistantMessageEventStream
 
 export type OAuthCredentials = {
   readonly refresh: string

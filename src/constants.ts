@@ -27,7 +27,12 @@ export const CLINEPASS_MODEL_SPECS: Readonly<Record<string, ClinePassModelSpec>>
 }
 
 export function modelSpecsFor(id: string): { contextWindow: number; maxTokens: number } {
-  return CLINEPASS_MODEL_SPECS[id] ?? { contextWindow: CLINEPASS_DEFAULT_CONTEXT_WINDOW, maxTokens: CLINEPASS_DEFAULT_MAX_TOKENS }
+  return (
+    CLINEPASS_MODEL_SPECS[id] ?? {
+      contextWindow: CLINEPASS_DEFAULT_CONTEXT_WINDOW,
+      maxTokens: CLINEPASS_DEFAULT_MAX_TOKENS,
+    }
+  )
 }
 
 export const CLINE_CLIENT_HEADERS = {

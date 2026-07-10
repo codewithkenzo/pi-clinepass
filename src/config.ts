@@ -19,5 +19,8 @@ export const WORKOS_DEVICE_AUTH_URL = `${HTTPS_PROTOCOL}://${WORKOS_API_HOST}/us
 export const WORKOS_AUTHENTICATE_URL = `${HTTPS_PROTOCOL}://${WORKOS_API_HOST}/user_management/authenticate`
 
 export function defaultProviderSettingsPath(): string {
-  return process.env.CLINE_PROVIDER_SETTINGS_PATH?.trim() || join(homedir(), ".cline", "data", "settings", "providers.json")
+  return (
+    process.env.CLINE_PROVIDER_SETTINGS_PATH?.trim() ||
+    join(homedir(), ".cline", "data", "settings", "providers.json")
+  )
 }
