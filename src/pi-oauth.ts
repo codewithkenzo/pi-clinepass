@@ -1,3 +1,10 @@
+import type {
+  Api,
+  Model,
+  OAuthCredentials,
+  OAuthLoginCallbacks,
+  OAuthProviderInterface,
+} from "@codewithkenzo/pi-ai-runtime"
 import { Clock, Effect } from "effect"
 import {
   CLINE_AUTH_REGISTER_URL,
@@ -8,13 +15,6 @@ import {
 } from "./config.js"
 import { CLINEPASS_DISPLAY_NAME, CLINEPASS_PROVIDER_ID } from "./constants.js"
 import { AuthError } from "./errors.js"
-import type {
-  Api,
-  Model,
-  OAuthCredentials,
-  OAuthLoginCallbacks,
-  OAuthProviderInterface,
-} from "./pi-types.js"
 
 const DEFAULT_EXPIRES_IN_SECONDS = 300
 const DEFAULT_POLL_INTERVAL_SECONDS = 5

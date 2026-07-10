@@ -9,7 +9,7 @@ import {
   modelSpecsFor,
 } from "./constants.js"
 import { UpstreamError } from "./errors.js"
-import type { Api, Model } from "./pi-types.js"
+import type { Model } from "@codewithkenzo/pi-ai-runtime"
 
 export interface RecommendedModelsResponse {
   clinePass?: Array<{ id: string; name?: string; description?: string }>
@@ -21,6 +21,10 @@ export interface ClinePassModelEntry {
   readonly upstreamId: string
   readonly name?: string
   readonly description?: string
+}
+
+export type ClinePassModel = Omit<Model<"openai-completions">, "api"> & {
+  readonly api: typeof CLINEPASS_API_ID
 }
 
 type PartialModelSpec = Partial<ClinePassModelSpec>
@@ -220,7 +224,7 @@ function mergeSpecs(
 export function toClinePassModelConfig(
   entry: ClinePassModelEntry,
   discoveredSpecs: ModelSpecsById = {},
-): Model<typeof CLINEPASS_API_ID> {
+): ClinePassModel {
   const specs = mergeSpecs(entry, discoveredSpecs)
   return {
     id: entry.id,
@@ -253,7 +257,7 @@ export function toClinePassModelConfig(
 export function buildClinePassModels(
   entries: readonly ClinePassModelEntry[],
   discoveredSpecs: ModelSpecsById = {},
-): Model<Api>[] {
+): ClinePassModel[] {
   return uniqueModels(entries).map((entry) => toClinePassModelConfig(entry, discoveredSpecs))
 }
 
@@ -267,6 +271,6 @@ export function discoverClinePassModels(fetcher: typeof fetch = fetch) {
   })
 }
 
-export function fallbackClinePassModels(): Model<Api>[] {
+export function fallbackClinePassModels(): ClinePassModel[] {
   return buildClinePassModels(FALLBACK_MODELS)
 }

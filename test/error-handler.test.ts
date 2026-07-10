@@ -1,6 +1,9 @@
+import type { AssistantMessage } from "@codewithkenzo/pi-ai-runtime"
+import type { ExtensionContext, ExtensionEvent } from "@earendil-works/pi-coding-agent"
 import { afterEach, describe, expect, it, mock } from "bun:test"
 import { classifyClinePassError, handleClinePassError } from "../src/error-handler.ts"
-import type { MessageEndEvent } from "../src/pi-types.ts"
+
+type MessageEndEvent = Extract<ExtensionEvent, { type: "message_end" }>
 
 const originalConsoleError = console.error
 
@@ -8,17 +11,33 @@ afterEach(() => {
   console.error = originalConsoleError
 })
 
-function errorEvent(overrides: Partial<MessageEndEvent["message"]> = {}): MessageEndEvent {
+function errorEvent(overrides: Partial<AssistantMessage> = {}): MessageEndEvent {
   return {
     type: "message_end",
     message: {
       role: "assistant",
+      content: [],
+      api: "clinepass:openai-completions",
       provider: "clinepass",
+      model: "test-model",
+      usage: {
+        input: 0,
+        output: 0,
+        cacheRead: 0,
+        cacheWrite: 0,
+        totalTokens: 0,
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+      },
       stopReason: "error",
       errorMessage: "upstream failed",
+      timestamp: 0,
       ...overrides,
     },
   }
+}
+
+function extensionContext(notify: (message: string) => void): ExtensionContext {
+  return { ui: { notify } } as unknown as ExtensionContext
 }
 
 describe("classifyClinePassError", () => {
@@ -67,7 +86,10 @@ describe("handleClinePassError", () => {
     const consoleError = mock(() => undefined)
     console.error = consoleError
 
-    handleClinePassError(errorEvent({ errorMessage: "HTTP 403 forbidden" }), { ui: { notify } })
+    handleClinePassError(
+      errorEvent({ errorMessage: "HTTP 403 forbidden" }),
+      extensionContext(notify),
+    )
 
     expect(notify).toHaveBeenCalledWith(
       "ClinePass subscription required. Run /login to authenticate.",
@@ -90,20 +112,19 @@ describe("handleClinePassError", () => {
     const consoleError = mock(() => undefined)
     console.error = consoleError
 
-    handleClinePassError(errorEvent({ errorMessage: "HTTP 401" }), {
-      ui: {
-        notify: () => {
-          throw new Error("UI unavailable")
-        },
-      },
-    })
+    handleClinePassError(
+      errorEvent({ errorMessage: "HTTP 401" }),
+      extensionContext(() => {
+        throw new Error("UI unavailable")
+      }),
+    )
 
     expect(consoleError).toHaveBeenCalledWith("ClinePass auth expired. Run /login to refresh.")
   })
 
   it("ignores non-ClinePass providers and non-error stop reasons", () => {
     const notify = mock(() => undefined)
-    const ctx = { ui: { notify } }
+    const ctx = extensionContext(notify)
 
     handleClinePassError(errorEvent({ provider: "other" }), ctx)
     handleClinePassError(errorEvent({ stopReason: "stop" }), ctx)

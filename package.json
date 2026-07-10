@@ -37,15 +37,11 @@
     "format:check": "oxfmt --check src/ test/"
   },
   "dependencies": {
+    "@codewithkenzo/pi-ai-runtime": "npm:@earendil-works/pi-ai@latest",
     "effect": "^4.0.0-beta.93"
   },
-  "peerDependencies": {
-    "@earendil-works/pi-coding-agent": "*",
-    "@earendil-works/pi-ai": "*"
-  },
   "devDependencies": {
-    "@earendil-works/pi-ai": "^0.80.2",
-    "@earendil-works/pi-coding-agent": "^0.80.2",
+    "@earendil-works/pi-coding-agent": "latest",
     "@types/bun": "latest",
     "oxfmt": "^0.58.0",
     "oxlint": "^1.73.0",

@@ -1,6 +1,13 @@
+import type { AssistantMessage } from "@codewithkenzo/pi-ai-runtime"
+import type {
+  ExtensionAPI,
+  ExtensionContext,
+  ExtensionEvent,
+} from "@earendil-works/pi-coding-agent"
 import { afterEach, describe, expect, it, mock } from "bun:test"
-import extension from "../src/index.ts"
-import { Effect } from "effect"
+import { Effect, Fiber } from "effect"
+import { TestClock } from "effect/testing"
+import extension, { LIVE_MODEL_DISCOVERY_TIMEOUT, loadClinePassModels } from "../src/index.ts"
 import {
   buildClinePassModels,
   clearOpenRouterModelsCache,
@@ -12,12 +19,15 @@ import {
 } from "../src/discovery.ts"
 import { CLINEPASS_BASE_URL } from "../src/config.ts"
 import { CLINEPASS_API_ID, CLINEPASS_PROVIDER_ID } from "../src/constants.ts"
-import type { ExtensionContext, MessageEndEvent } from "../src/pi-types.ts"
+
+type MessageEndEvent = Extract<ExtensionEvent, { type: "message_end" }>
 
 const originalFetch = globalThis.fetch
+const originalStderrWrite = process.stderr.write
 
 afterEach(() => {
   globalThis.fetch = originalFetch
+  process.stderr.write = originalStderrWrite
   clearOpenRouterModelsCache()
 })
 
@@ -27,6 +37,38 @@ function jsonResponse(value: unknown, init?: ResponseInit) {
     ...init,
     headers: { "content-type": "application/json" },
   })
+}
+
+function assistantMessage(overrides: Partial<AssistantMessage> = {}): AssistantMessage {
+  return {
+    role: "assistant",
+    content: [],
+    api: CLINEPASS_API_ID,
+    provider: CLINEPASS_PROVIDER_ID,
+    model: "test-model",
+    usage: {
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      totalTokens: 0,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+    },
+    stopReason: "error",
+    timestamp: 0,
+    ...overrides,
+  }
+}
+
+function extensionContext(notify: (message: string) => void): ExtensionContext {
+  return { ui: { notify } } as unknown as ExtensionContext
+}
+
+function extensionApi(
+  registerProvider: unknown,
+  on: unknown = mock(() => undefined),
+): ExtensionAPI {
+  return { registerProvider, on } as unknown as ExtensionAPI
 }
 
 describe("ClinePass model discovery/config", () => {
@@ -147,13 +189,55 @@ describe("ClinePass model discovery/config", () => {
 })
 
 describe("Pi provider extension", () => {
+  it("issue #1: uses direct stable pi-ai runtime subpath", async () => {
+    const providerApi = await import("@codewithkenzo/pi-ai-runtime/api/openai-completions")
+    const source = await Bun.file(new URL("../src/index.ts", import.meta.url)).text()
+    const packageJson = await Bun.file(new URL("../package.json", import.meta.url)).text()
+
+    expect(typeof providerApi.streamSimple).toBe("function")
+    expect(source).toContain('from "@codewithkenzo/pi-ai-runtime/api/openai-completions"')
+    expect(source).not.toContain("@earendil-works/pi-ai")
+    expect(source).not.toContain(["@codewithkenzo/pi-ai-runtime", "compat"].join("/"))
+    expect(packageJson).toContain(
+      '"@codewithkenzo/pi-ai-runtime": "npm:@earendil-works/pi-ai@latest"',
+    )
+  })
+
+  it("bounds hung live discovery and falls back using Effect timeout", async () => {
+    const stderrWrite = mock((_chunk: string | Uint8Array) => true)
+    process.stderr.write = stderrWrite as unknown as typeof process.stderr.write
+    const fetcher = mock(() => new Promise<Response>(() => undefined)) as unknown as typeof fetch
+
+    const models = await Effect.runPromise(
+      Effect.gen(function* () {
+        const fiber = yield* Effect.forkChild(loadClinePassModels(fetcher))
+        yield* Effect.yieldNow
+        yield* TestClock.adjust(LIVE_MODEL_DISCOVERY_TIMEOUT)
+        return yield* Fiber.join(fiber)
+      }).pipe(Effect.provide(TestClock.layer())),
+    )
+
+    expect(models.map((model) => model.id)).toEqual([
+      "glm-5.2",
+      "qwen3.7-max",
+      "qwen3.7-plus",
+      "kimi-k2.7-code",
+      "deepseek-v4-pro",
+      "deepseek-v4-flash",
+      "minimax-m3",
+    ])
+    expect(fetcher).toHaveBeenCalledTimes(1)
+    expect(stderrWrite).toHaveBeenCalledTimes(1)
+    expect(String(stderrWrite.mock.calls[0]?.[0])).toContain("Discovery timed out after 5 seconds")
+  })
+
   it("falls back to static models when live discovery fails", async () => {
     globalThis.fetch = mock(async () =>
       jsonResponse({}, { status: 503 }),
     ) as unknown as typeof fetch
     const registerProvider = mock(() => undefined)
 
-    await extension({ registerProvider } as never)
+    await extension(extensionApi(registerProvider))
 
     const config = (
       registerProvider.mock.calls[0] as unknown as [string, { models: Array<{ id: string }> }]
@@ -177,7 +261,7 @@ describe("Pi provider extension", () => {
     const registerProvider = mock(() => undefined)
     const on = mock(() => undefined)
 
-    await extension({ registerProvider, on } as never)
+    await extension(extensionApi(registerProvider, on))
 
     const [eventName, handler] = on.mock.calls[0] as unknown as [
       string,
@@ -187,14 +271,9 @@ describe("Pi provider extension", () => {
     handler(
       {
         type: "message_end",
-        message: {
-          role: "assistant",
-          provider: CLINEPASS_PROVIDER_ID,
-          stopReason: "error",
-          errorMessage: "HTTP 401 unauthorized",
-        },
+        message: assistantMessage({ errorMessage: "HTTP 401 unauthorized" }),
       },
-      { ui: { notify } },
+      extensionContext(notify),
     )
 
     expect(eventName).toBe("message_end")
@@ -212,7 +291,7 @@ describe("Pi provider extension", () => {
     ) as unknown as typeof fetch
     const registerProvider = mock(() => undefined)
 
-    await extension({ registerProvider } as never)
+    await extension(extensionApi(registerProvider))
 
     expect(registerProvider).toHaveBeenCalledTimes(1)
     const [providerId, config] = registerProvider.mock.calls[0] as unknown as [

@@ -1,6 +1,8 @@
+import type { ExtensionContext, ExtensionEvent } from "@earendil-works/pi-coding-agent"
 import { CLINEPASS_PROVIDER_ID } from "./constants.js"
 import { ProviderError } from "./errors.js"
-import type { ExtensionContext, MessageEndEvent } from "./pi-types.js"
+
+type MessageEndEvent = Extract<ExtensionEvent, { type: "message_end" }>
 
 const USER_MESSAGES = {
   not_subscribed: "ClinePass subscription required. Run /login to authenticate.",
@@ -113,7 +115,8 @@ export function handleClinePassError(event: MessageEndEvent, ctx?: ExtensionCont
     const message = event?.message
     if (
       event?.type !== "message_end" ||
-      message?.provider !== CLINEPASS_PROVIDER_ID ||
+      message?.role !== "assistant" ||
+      message.provider !== CLINEPASS_PROVIDER_ID ||
       message?.stopReason !== "error" ||
       !message.errorMessage
     ) {
