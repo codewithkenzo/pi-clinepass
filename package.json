@@ -36,7 +36,9 @@
     "lint:type-aware": "oxlint --config .oxlintrc.json --deny-warnings --report-unused-disable-directives --type-aware --type-check src/ test/ scripts/",
     "format": "oxfmt --write src/ test/ scripts/ package.json tsconfig.json .oxlintrc.json .oxfmtrc.json",
     "format:check": "oxfmt --check src/ test/ scripts/ package.json tsconfig.json .oxlintrc.json .oxfmtrc.json",
-    "quality:sentinel": "bun scripts/quality-sentinel.ts"
+    "quality:sentinel": "bun scripts/quality-sentinel.ts",
+    "package:contract": "bun scripts/package-contract.ts",
+    "clean-room": "bun scripts/clean-room.ts"
   },
   "dependencies": {
     "@codewithkenzo/pi-ai-runtime": "npm:@earendil-works/pi-ai@0.80.6",

@@ -1,0 +1,18 @@
+FROM docker.io/library/node:22-bookworm-slim
+
+ARG PI_PACKAGE
+ARG PI_VERSION
+
+WORKDIR /app
+COPY artifact.tgz /tmp/pi-clinepass-artifact.tgz
+RUN npm init -y >/dev/null \
+  && npm install --omit=dev /tmp/pi-clinepass-artifact.tgz "${PI_PACKAGE}@${PI_VERSION}" \
+  && npm cache clean --force \
+  && rm /tmp/pi-clinepass-artifact.tgz
+
+COPY container-smoke.mjs /opt/pi-clinepass-container-smoke.mjs
+ENV HOME=/tmp/pi-clinepass-home \
+    PI_BIN=/app/node_modules/.bin/pi \
+    EXTENSION_ENTRY=/app/node_modules/@codewithkenzo/pi-clinepass/src/index.ts
+
+CMD ["node", "/opt/pi-clinepass-container-smoke.mjs"]
