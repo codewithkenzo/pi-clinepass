@@ -9,7 +9,7 @@
         "effect": "^4.0.0-beta.93",
       },
       "devDependencies": {
-        "@earendil-works/pi-coding-agent": "latest",
+        "@earendil-works/pi-coding-agent": "0.80.6",
         "@types/bun": "latest",
         "oxfmt": "^0.58.0",
         "oxlint": "^1.73.0",
