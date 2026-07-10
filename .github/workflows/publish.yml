@@ -4,22 +4,62 @@ on:
   release:
     types: [published]
 
+concurrency:
+  group: publish-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
 jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
   publish:
+    needs: ci
     runs-on: ubuntu-latest
     permissions:
       contents: read
       id-token: write
+    outputs:
+      version: ${{ steps.release.outputs.version }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
       - uses: oven-sh/setup-bun@v2
-      - run: bun install
-      - run: bun run typecheck
-      - run: bun run lint
-      - run: bun run format:check
-      - run: bun test
-      # Trusted publishing via OIDC — no long-lived NPM_TOKEN.
-      # Configure trusted publisher on npm for this repo + workflow first:
-      # https://docs.npmjs.com/trusted-publishers/
-      # Local publish still uses your existing `npm whoami` login.
-      - uses: JS-DevTools/npm-publish@v4
+        with:
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
+      - name: Verify release tag matches package version
+        id: release
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          version="$(bun -e 'const p=await Bun.file("package.json").json(); console.log(p.version)')"
+          test "$RELEASE_TAG" = "v$version" || {
+            echo "Release tag $RELEASE_TAG must equal v$version" >&2
+            exit 1
+          }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Publish with npm trusted publishing
+        uses: JS-DevTools/npm-publish@v4
+        with:
+          access: public
+          provenance: true
+
+  registry-contract:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
+      - name: Verify published registry artifact and official Pi install
+        run: bun scripts/registry-contract.ts "${{ needs.publish.outputs.version }}"

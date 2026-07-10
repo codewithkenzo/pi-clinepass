@@ -145,9 +145,17 @@ Why `thinkingFormat: "together"`:
 bun install
 bun run typecheck
 bun run lint
+bun run lint:type-aware
 bun run format:check
+bun run quality:sentinel
 bun test
+bun run package:contract
+bun run clean-room
 ```
+
+`package:contract` packs the real npm artifact, installs production dependencies in an isolated
+consumer, and loads it through Pi without credentials. `clean-room` is mandatory and requires
+Podman; it runs packed-artifact smoke tests against official Pi 0.73.1 and Earendil Pi 0.80.6.
 
 Useful smoke test after local install:
 
@@ -170,3 +178,18 @@ Pi loads this package through:
 ```
 
 Runtime entrypoint: `src/index.ts`.
+
+## Maintainer release setup
+
+Runtime updates run weekly from `.github/workflows/update-runtime.yml`. Configure
+`RUNTIME_UPDATE_TOKEN` as a fine-grained personal access token or GitHub App token with repository
+**Contents: read/write** and **Pull requests: read/write**. GitHub's default workflow token is not
+used because pull requests created by it do not trigger `pull_request` CI. The updater keeps one
+`automation/pi-ai-runtime` branch, pins an exact runtime version, and never auto-merges; full CI and
+review remain required.
+
+npm publication uses trusted publishing (OIDC) from `.github/workflows/publish.yml`; do not add an
+`NPM_TOKEN`. Configure that repository/workflow as the trusted publisher in npm. Create a published
+GitHub release only when its tag exactly matches `v${package.version}` (for this release, `v0.1.1`).
+The workflow runs reusable full CI before publish, then polls npm and verifies public metadata,
+tarball integrity, production installation, and a no-auth official Pi smoke test.

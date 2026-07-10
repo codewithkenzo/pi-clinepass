@@ -31,11 +31,16 @@ export function requireSuccess(label: string, result: CommandResult): void {
   }
 }
 
-export async function packLocalArtifact(repoRoot: string, destination: string): Promise<string> {
+async function packArtifact(
+  npmArguments: readonly string[],
+  destination: string,
+  cwd?: string,
+): Promise<string> {
   await mkdir(destination, { recursive: true })
-  const result = await runCommand(["npm", "pack", "--json", "--pack-destination", destination], {
-    cwd: repoRoot,
-  })
+  const result = await runCommand(
+    ["npm", "pack", ...npmArguments, "--json", "--pack-destination", destination],
+    { cwd },
+  )
   requireSuccess("npm pack", result)
   let report: unknown
   try {
@@ -57,6 +62,14 @@ export async function packLocalArtifact(repoRoot: string, destination: string): 
     throw new Error("npm pack filename is unsafe")
   }
   return resolve(destination, filename)
+}
+
+export function packLocalArtifact(repoRoot: string, destination: string): Promise<string> {
+  return packArtifact([], destination, repoRoot)
+}
+
+export function packRegistryArtifact(specifier: string, destination: string): Promise<string> {
+  return packArtifact([specifier], destination)
 }
 
 export async function listTarball(tarball: string): Promise<string[]> {

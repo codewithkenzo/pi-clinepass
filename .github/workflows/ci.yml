@@ -2,18 +2,88 @@ name: CI
 
 on:
   push:
-    branches: [main, upgrade/*]
+    branches: [main, "fix/**"]
   pull_request:
     branches: [main]
+  workflow_call:
+
+permissions:
+  contents: read
 
 jobs:
-  test:
+  quality:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
-      - run: bun install
+        with:
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
       - run: bun run typecheck
-      - run: bun run lint
       - run: bun run format:check
+      - run: bun run lint
+      - run: bun run lint:type-aware
+
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
       - run: bun test
+
+  quality-sentinel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
+      - run: bun run quality:sentinel
+
+  package-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
+      - run: bun run package:contract
+
+  podman-clean-room:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
+      - name: Install Podman
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes podman
+      - run: bun run clean-room
+
+  required:
+    if: always()
+    needs: [quality, unit, quality-sentinel, package-contract, podman-clean-room]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every CI gate
+        env:
+          QUALITY: ${{ needs.quality.result }}
+          UNIT: ${{ needs.unit.result }}
+          SENTINEL: ${{ needs['quality-sentinel'].result }}
+          PACKAGE_CONTRACT: ${{ needs['package-contract'].result }}
+          PODMAN: ${{ needs['podman-clean-room'].result }}
+        run: |
+          for result in "$QUALITY" "$UNIT" "$SENTINEL" "$PACKAGE_CONTRACT" "$PODMAN"; do
+            if [ "$result" != "success" ]; then
+              echo "Required CI dependency failed or was skipped: $result" >&2
+              exit 1
+            fi
+          done
