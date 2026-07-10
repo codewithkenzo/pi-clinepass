@@ -8,18 +8,16 @@
 
 Use ClinePass models (GLM-5.2, Kimi K2.7, DeepSeek V4, Qwen3.7, MiniMax M3) in Pi. Log in with a browser device code, pick a model, start coding.
 
-## What works
+## Capabilities
 
-This is a real Pi provider (`clinepass`), not a wrapper script. After `/login` you get live models from Cline's recommended list, OpenAI-completions transport to `https://api.cline.bot/api/v1`, and Pi-stored OAuth credentials that only surface as `workos:<access>` on the wire.
+- WorkOS device-code OAuth with Cline token registration and refresh
+- Live ClinePass model discovery with static fallback metadata
+- Per-model context windows, output limits, reasoning settings, and thinking maps
+- Prompt-cache and reasoning compatibility for the ClinePass gateway
+- Provider id `clinepass`; transport `openai-completions` at `https://api.cline.bot/api/v1`
+- Credentials stored by Pi; requests use `Authorization: Bearer workos:<access>`
 
-Things I actually needed to get right:
-
-- Device-code OAuth through WorkOS + Cline register/refresh (no pasted API key)
-- Live model discovery with a static fallback when the recommended-models endpoint is down
-- Per-model context windows, max tokens, reasoning flags, and thinking-level maps
-- Prompt-cache markers and reasoning params that ClinePass actually honors
-
-Default model to try first: `glm-5.2`.
+Primary model: `glm-5.2`.
 
 ## Install locally
 
@@ -74,20 +72,20 @@ pi --model clinepass/glm-5.2 "Say OK"
 
 1. `/login` starts a WorkOS OAuth device authorization request.
 2. Pi shows a verification URL and one-time device code.
-3. Open that URL on any browser, enter the code, approve access.
-4. The extension polls WorkOS until you finish.
-5. It registers the WorkOS tokens with Cline auth and hands Pi OAuth credentials.
+3. Open the URL, enter the code, approve access.
+4. The extension polls WorkOS until authorization completes.
+5. WorkOS tokens register with Cline auth; Pi receives OAuth credentials.
 6. Later requests use refreshed Cline access tokens.
 
-Protocol detail (same flow, wire level):
+Wire-level detail:
 
 1. WorkOS device auth with Cline's production client id
 2. Poll WorkOS until approved
 3. `POST /api/v1/auth/register` with WorkOS tokens
 4. `POST /api/v1/auth/refresh` when access is near expiry
-5. Requests go out as `Authorization: Bearer workos:<access>`
+5. Requests use `Authorization: Bearer workos:<access>`
 
-Token rule: this repo never logs access or refresh tokens.
+Access and refresh tokens are never logged.
 
 ## Model discovery
 
@@ -97,7 +95,7 @@ The extension fetches:
 https://api.cline.bot/api/v1/ai/cline/recommended-models
 ```
 
-It reads `clinePass[]`, dedupes model ids, then enriches context/output limits from OpenRouter's public model catalog by model slug. A static table covers known ClinePass models when OpenRouter omits fields. If the live list fails, you still get the fallback set (you will see a stderr line about it).
+It reads `clinePass[]`, dedupes model ids, then enriches context/output limits from OpenRouter's public model catalog by model slug. A static table covers known ClinePass models when OpenRouter omits fields. If the live list fails, the extension falls back to the static set and writes a stderr notice.
 
 Known models:
 
@@ -137,11 +135,9 @@ Each model is registered with:
 Why `thinkingFormat: "together"`:
 
 - ClinePass accepts top-level `reasoning` objects.
-- `{ reasoning: { enabled: false } }` suppresses GLM reasoning.
-- Pi's OpenRouter-style off state emits `{ reasoning: { effort: "none" } }`, which ClinePass does not suppress.
+- ClinePass honors `{ reasoning: { enabled: false } }`.
+- It does not treat `{ reasoning: { effort: "none" } }` as disabled.
 - z.ai-native `thinking: { type: "disabled" }` is also ignored by ClinePass.
-
-I hit all three shapes while wiring this. Together-format is the one that actually turns reasoning off on the gateway.
 
 ## Development
 
@@ -159,7 +155,7 @@ Useful smoke test after local install:
 pi --model clinepass/glm-5.2 -p "Reply exactly OK"
 ```
 
-If it says `No API key found for clinepass`, the extension loaded correctly; run `/login`.
+If it says `No API key found for clinepass`, the extension loaded; run `/login`.
 
 ## Package surface
 
