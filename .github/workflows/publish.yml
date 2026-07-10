@@ -7,13 +7,19 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
       - run: bun install
       - run: bun run typecheck
       - run: bun run lint
+      - run: bun run format:check
       - run: bun test
-      - uses: JS-DevTools/npm-publish@v3
-        with:
-          token: ${{ secrets.NPM_TOKEN }}
+      # Trusted publishing via OIDC — no long-lived NPM_TOKEN.
+      # Configure trusted publisher on npm for this repo + workflow first:
+      # https://docs.npmjs.com/trusted-publishers/
+      # Local publish still uses your existing `npm whoami` login.
+      - uses: JS-DevTools/npm-publish@v4

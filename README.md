@@ -95,15 +95,15 @@ It reads `clinePass[]`, dedupes model ids, then enriches context/output limits f
 
 Known models:
 
-| Model | Context window | Max output tokens | Reasoning |
-| --- | ---: | ---: | :---: |
-| `glm-5.2` | 1,048,576 | 131,072 | Yes |
-| `qwen3.7-max` | 1,000,000 | 65,536 | Yes |
-| `qwen3.7-plus` | 1,000,000 | 65,536 | Yes |
-| `kimi-k2.7-code` | 262,144 | 16,384 | Yes |
-| `deepseek-v4-pro` | 1,048,576 | 384,000 | Yes |
-| `deepseek-v4-flash` | 1,048,576 | 65,536 | Yes |
-| `minimax-m3` | 1,048,576 | 512,000 | Yes |
+| Model               | Context window | Max output tokens | Reasoning |
+| ------------------- | -------------: | ----------------: | :-------: |
+| `glm-5.2`           |      1,048,576 |           131,072 |    Yes    |
+| `qwen3.7-max`       |      1,000,000 |            65,536 |    Yes    |
+| `qwen3.7-plus`      |      1,000,000 |            65,536 |    Yes    |
+| `kimi-k2.7-code`    |        262,144 |            16,384 |    Yes    |
+| `deepseek-v4-pro`   |      1,048,576 |           384,000 |    Yes    |
+| `deepseek-v4-flash` |      1,048,576 |            65,536 |    Yes    |
+| `minimax-m3`        |      1,048,576 |           512,000 |    Yes    |
 
 ## OAuth behavior
 

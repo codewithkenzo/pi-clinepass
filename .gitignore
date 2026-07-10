@@ -1,6 +1,8 @@
 node_modules/
 dist/
 .pi/structured-returns/
+.pi-subagents/
 .DS_Store
 .env
 *.log
+*.tgz
