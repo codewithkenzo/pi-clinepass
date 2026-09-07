@@ -41,7 +41,7 @@
     "clean-room": "bun scripts/clean-room.ts"
   },
   "dependencies": {
-    "@codewithkenzo/pi-ai-runtime": "npm:@earendil-works/pi-ai@0.80.6",
+    "@codewithkenzo/pi-ai-runtime": "npm:@earendil-works/pi-ai@0.85.1",
     "effect": "^4.0.0-beta.93"
   },
   "devDependencies": {
